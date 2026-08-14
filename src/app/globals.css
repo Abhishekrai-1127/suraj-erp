@@ -1,0 +1,213 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  --background: #f8fafc;
+  --foreground: #0f172a;
+  --foreground-secondary: #64748b;
+
+  --card: #ffffff;
+  --border: #e2e8f0;
+
+  --navbar: #ffffff;
+  --modal: #ffffff;
+  --drawer: #ffffff;
+
+  --table-header-bg: #f8fafc;
+  --table-row-hover: #f1f5f9;
+  --table-border: #e2e8f0;
+}
+
+.dark {
+  --background: #020617;
+  --foreground: #f8fafc;
+  --foreground-secondary: #94a3b8;
+
+  --card: #0f172a;
+  --border: #1e293b;
+
+  --navbar: #0f172a;
+  --modal: #0f172a;
+  --drawer: #0f172a;
+
+  --table-header-bg: #0f172a;
+  --table-row-hover: #1e293b;
+  --table-border: #1e293b;
+}
+
+@theme {
+  /* 1. Color Palette - Primary (Brand) */
+  --color-primary-50: #eff6ff;
+  --color-primary-100: #dbeafe;
+  --color-primary-200: #bfdbfe;
+  --color-primary-300: #93c5fd;
+  --color-primary-400: #60a5fa;
+  --color-primary-500: #3b82f6;
+  --color-primary-600: #2563eb;
+  --color-primary-700: #1d4ed8;
+  --color-primary-800: #1e40af;
+  --color-primary-900: #1e3a8a;
+  --color-primary: #2563eb; /* Main brand color */
+
+  /* 2. Neutral Colors */
+  --color-gray-50: #f8fafc;
+  --color-gray-100: #f1f5f9;
+  --color-gray-200: #e2e8f0;
+  --color-gray-300: #cbd5e1;
+  --color-gray-400: #94a3b8;
+  --color-gray-500: #64748b;
+  --color-gray-600: #475569;
+  --color-gray-700: #334155;
+  --color-gray-800: #1e293b;
+  --color-gray-900: #0f172a;
+
+  /* 3. Semantic Colors */
+  --color-success: #22c55e;
+  --color-warning: #f59e0b;
+  --color-danger: #ef4444;
+  --color-info: #3b82f6;
+  --color-purple: #7c3aed;
+
+  /* 4. Background & Component Colors */
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-foreground-secondary: var(--foreground-secondary);
+  --color-card: var(--card);
+  --color-border: var(--border);
+  --color-navbar: var(--navbar);
+  --color-modal: var(--modal);
+  --color-drawer: var(--drawer);
+
+  /* 5. Sidebar Theme */
+  --color-sidebar-bg: #0f172a;
+  --color-sidebar-hover: #1e293b;
+  --color-sidebar-active: #2563eb;
+  --color-sidebar-text: #cbd5e1;
+  --color-sidebar-active-text: #ffffff;
+
+  /* 6. Typography */
+  --font-sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+
+  --text-caption: 12px;
+  --text-body: 14px;
+  --text-base: 16px;
+  --text-subtitle: 18px;
+  --text-heading-sm: 20px;
+  --text-heading: 24px;
+  --text-hero: 30px;
+  --text-display: 36px;
+
+  /* 7. Font Weight */
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+
+  /* 8. Border Radius */
+  --radius-xs: 4px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+  --radius-2xl: 24px;
+  --radius-full: 9999px;
+
+  --radius-card: 16px;
+  --radius-button: 10px;
+  --radius-input: 10px;
+  --radius-dialog: 20px;
+
+  /* 9. Spacing (8px Grid) */
+  --spacing-1: 4px;
+  --spacing-2: 8px;
+  --spacing-3: 12px;
+  --spacing-4: 16px;
+  --spacing-5: 20px;
+  --spacing-6: 24px;
+  --spacing-8: 32px;
+  --spacing-10: 40px;
+  --spacing-12: 48px;
+  --spacing-14: 56px;
+  --spacing-16: 64px;
+  --spacing-20: 80px;
+  --spacing-24: 96px;
+
+  /* Spacing Aliases for exact requested scale */
+  --spacing-space-4: 4px;
+  --spacing-space-8: 8px;
+  --spacing-space-12: 12px;
+  --spacing-space-16: 16px;
+  --spacing-space-20: 20px;
+  --spacing-space-24: 24px;
+  --spacing-space-32: 32px;
+  --spacing-space-40: 40px;
+  --spacing-space-48: 48px;
+  --spacing-space-56: 56px;
+  --spacing-space-64: 64px;
+  --spacing-space-80: 80px;
+  --spacing-space-96: 96px;
+
+  /* 10. Shadows */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 12px rgba(15, 23, 42, 0.08);
+  --shadow-lg: 0 12px 30px rgba(15, 23, 42, 0.12);
+  --shadow-xl: 0 20px 40px rgba(15, 23, 42, 0.15);
+
+  /* 12. Icon Sizes */
+  --spacing-icon-sm: 16px;
+  --spacing-icon: 20px;
+  --spacing-icon-lg: 24px;
+  --spacing-icon-xl: 32px;
+
+  /* 13. Status Colors */
+  --color-status-draft: var(--color-gray-500);
+  --color-status-pending: #f59e0b; /* Orange/Warning color */
+  --color-status-approved: #22c55e;
+  --color-status-rejected: #ef4444;
+  --color-status-completed: #3b82f6;
+  --color-status-cancelled: #64748b;
+
+  /* 14. Table Theme */
+  --color-table-header-bg: var(--table-header-bg);
+  --color-table-row-hover: var(--table-row-hover);
+  --color-table-border: var(--table-border);
+
+  /* 15. Charts */
+  --color-chart-sales: #2563eb;
+  --color-chart-expense: #f97316;
+  --color-chart-profit: #22c55e;
+  --color-chart-inventory: #7c3aed;
+  --color-chart-purchase: #06b6d4;
+  --color-chart-manufacturing: #6366f1;
+  --color-chart-finance: #14b8a6;
+
+  /* 16. Animation Durations & Easing */
+  --duration-hover: 150ms;
+  --duration-button: 200ms;
+  --duration-modal: 250ms;
+  --duration-drawer: 300ms;
+  --ease-theme: ease-in-out;
+
+  /* 17. Layout */
+  --spacing-sidebar: 280px;
+  --spacing-navbar: 72px;
+  --spacing-page-padding: 32px;
+  --spacing-card-gap: 24px;
+}
+
+@layer base {
+  *, ::after, ::before, ::backdrop, ::file-selector-button {
+    border-color: var(--border);
+  }
+
+  html,
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    transition-property: background-color, border-color, color, fill, stroke;
+    transition-timing-function: var(--ease-theme);
+    transition-duration: var(--duration-hover);
+  }
+}
