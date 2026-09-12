@@ -261,15 +261,17 @@ This document records key technical and architectural decisions made in the code
 - **Trade-offs Accepted**:
   - `purchaseApi` uses a hybrid offline-first strategy: queries and mutations call the live backend API first, falling back to local storage and browser events when offline or during backend cold-starts, ensuring seamless continuous operation for factory personnel.
 
-## 2026-09-13 — UI Sales Document Status Options & Backend Enum Alignment
+---
+
+## 2026-09-13 — Default Application Route Configured to /login
 - **Decision**:
-  - Added dedicated status selection dropdowns directly into the UI forms across Sales Order, Quotation, and Invoice tabs in `QuickAddModal`.
-  - Replaced legacy, non-enum status options in `EditDocumentModal` (`getStatusOptions`) and `CreateChallanModal` with exact subsets of the backend `SalesDocStatus` enum (`DRAFT`, `PENDING`, `APPROVED`, `PAID`, `UNPAID`, `DELIVERED`, `CANCELLED`).
-  - Added a dedicated `STATUS` column with color-coded badges to the Invoices table (`/sales/invoices`), and aligned filter toolbars across Quotations, Sales Orders, Invoices, and Delivery Challans to use valid backend enum values.
+  - Configured `/login` as the default landing route across Suraj ERP.
+  - Implemented Next.js server-level redirect in `next.config.mjs` (`source: '/' -> destination: '/login'`) and client-side fallback in `src/app/page.js` (`router.replace('/login')`).
 - **Why**:
-  - The backend NestJS DTO validation (`@IsEnum(SalesDocStatus)`) rejected any documents updated or created with custom strings. Previously, `QuickAddModal` completely omitted status inputs from the UI, hardcoding values and preventing users from choosing the document status.
+  - Secure enterprise ERP workflow requires users to authenticate at `/login` before accessing application modules and dashboard metrics.
 - **Trade-offs Accepted**:
-  - Filter toolbars now filter by the official enterprise statuses (`PENDING`, `APPROVED`, `DELIVERED`, `DRAFT`, `CANCELLED` for Orders; `UNPAID`, `PAID`, `DRAFT`, `CANCELLED` for Invoices). Backward compatibility with older legacy records is preserved via `normalizeSalesDocStatus`.
+  - Direct root access (`/`) automatically redirects to `/login`. Once credentials are authenticated, the login flow transitions the session to `/dashboard`.
+
 
 
 

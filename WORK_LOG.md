@@ -1239,6 +1239,22 @@ This document provides a start-to-finish audit trail for every feature implement
   - Frontend Lint: `pnpm exec eslint src/services/purchase-api.js src/hooks/use-purchase-store.js src/components/purchase/ src/app/(dashboard)/purchase/` passed with 0 errors and 0 warnings.
   - Frontend Production Build: `pnpm run build` compiled all 38 static routes cleanly in 5.4s with exit code 0.
 
+---
+
+### Task #064: Set Login Page as Default Route
+- **Date**: 2026-09-13
+- **Status**: ✅ Completed
+- **1. Discovery & Scoping**:
+  - User requested: "make the login page default route".
+  - Previously, `src/app/page.js` redirected directly to `/dashboard` via `router.replace('/dashboard')`.
+- **2. Execution & What Was Done**:
+  - Updated `src/app/page.js` to redirect to `/login` via `router.replace('/login')`.
+  - Added Next.js server-level redirect in `next.config.mjs` routing `/` to `/login`.
+- **3. Verification**:
+  - `pnpm exec eslint src/app/page.js` passed with 0 errors.
+  - `pnpm run build` compiled all 38 static routes cleanly in 6.5s with exit code 0.
+
+
 
 
 
