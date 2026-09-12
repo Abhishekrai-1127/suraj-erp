@@ -49,21 +49,18 @@ This file is a living record of project status, architecture decisions, current 
 - **Comprehensive Removal of Hardcoded Data & Unit Fallbacks**: Purged all hardcoded measurement units ("Nos", "Pcs", "Units", "Bags") and fallback injections across line item generators, modals, and print layouts; eliminated fabricated mock lines in Tally mappers; wired static KPI metric cards and charts across Dashboard, Sales Analytics, Purchase Analytics, and Invoices to dynamic ERP document stores with deterministic INR formatters.
 - **Sales Analytics Chart Scaling & Dynamic Data Resolution**: Constrained BarChart bar sizes (`maxBarSize={48}`, `barSize={36}`) with blue SVG gradients to eliminate monolithic grey block rendering; normalized document type checks (`sales_order` vs `order`) and merged React Query with local stores to accurately count orders and revenue; dynamically derived category distributions and payment methods from real line items; and integrated active monthly target projections into the forecast suite.
 - **Sales API DTO Normalization & NestJS Backend Compliance**: Aligned all frontend API payloads with backend NestJS DTO specifications (`CreateSalesDocDto`, `UpdateSalesDocDto`, `LineItemDto`, `SalesDocQueryDto`, `SalesDocType`, `SalesDocStatus`) in [sales-api.js](file:///Users/abhii/Documents/GitHub/suraj-erp/src/services/sales-api.js), enforcing strict enum types, ISO date formatting, numeric line item attributes (`listPrice`, `qty`), and precise tax segment splits (`cgstAmount`, `sgstAmount`, `igstAmount`).
-- **UI Sales Document Status Options & Backend Enum Alignment**: Added UI status selection dropdowns across Sales Order, Quotation, and Invoice tabs in `QuickAddModal` ([quick-add-modal.jsx](file:///Users/abhii/Documents/GitHub/suraj-erp/src/components/sales/quick-add-modal.jsx)); aligned `getStatusOptions` in `EditDocumentModal` ([edit-document-modal.jsx](file:///Users/abhii/Documents/GitHub/suraj-erp/src/components/sales/edit-document-modal.jsx)) and `CreateChallanModal` ([create-challan-modal.jsx](file:///Users/abhii/Documents/GitHub/suraj-erp/src/components/sales/create-challan-modal.jsx)) to backend `SalesDocStatus` enum (`DRAFT`, `PENDING`, `APPROVED`, `PAID`, `UNPAID`, `DELIVERED`, `CANCELLED`); added `STATUS` column to Invoices table; and synchronized table filter toolbars and badges across Quotations, Orders, Invoices, and Delivery Challans.
-
-
-
+- **Purchase Module Modernization, Sequential Ref Numbering & Full CRUD REST Integration**: Created `purchaseApi` ([purchase-api.js](file:///Users/abhii/Documents/GitHub/suraj-erp/src/services/purchase-api.js)) connecting `/api/v1/purchase` with offline-fallback to local storage; exposed sequential zero-padded reference numbering (`PB-2026-0001`, `RFO-2026-0001`, `MAC-2026-0001`) via backend `GET /purchase/next-ref-no`; wired `usePurchaseStore` to mutations and invalidations; integrated UI status selectors for bills, RFOs, and machinery in `PurchaseAddModal` ([purchase-add-modal.jsx](file:///Users/abhii/Documents/GitHub/suraj-erp/src/components/purchase/purchase-add-modal.jsx)); added row deletions, quick approval/cancellation, status updates, and search filters across Purchase Bills ([bills/page.js](file:///Users/abhii/Documents/GitHub/suraj-erp/src/app/(dashboard)/purchase/bills/page.js)), RFOs ([rfo/page.js](file:///Users/abhii/Documents/GitHub/suraj-erp/src/app/(dashboard)/purchase/rfo/page.js)), and Machinery ([machinery/page.js](file:///Users/abhii/Documents/GitHub/suraj-erp/src/app/(dashboard)/purchase/machinery/page.js)).
 
 ---
 
 ## 🚧 What's In Progress
-- Connecting frontend modules to live backend services / database APIs.
+- Connecting remaining frontend modules (Inventory, Finance, Manufacturing) to live backend services / database APIs.
 - Expanding form validation (Zod + React Hook Form) across ERP workflows.
 
 ---
 
 ## ⚠️ What's Broken / Known Issues
-- `pnpm run lint` currently reports 25 pre-existing errors in unrelated dashboard, purchase, sales, and inventory files. CRM API response normalization remains lint-clean and the production build compiles cleanly.
+- *None currently.* Both frontend `pnpm run build` (38/38 routes) and backend `nest build` compile cleanly with 0 errors.
 
 ---
 

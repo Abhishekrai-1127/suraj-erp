@@ -5,30 +5,80 @@ import PurchaseTabNav from "@/components/purchase/purchase-tab-nav";
 import Drawer from "@/components/ui/drawer";
 import SalesDrawerContent from "@/components/sales/sales-drawer-content";
 import PurchaseAddModal from "@/components/purchase/purchase-add-modal";
-import { Filter, Plus, MoreVertical, FileText } from "lucide-react";
+import { Filter, Plus, Trash2, CheckCircle2, Search } from "lucide-react";
 import { toast } from "sonner";
-
-import { usePurchaseRecords } from "@/hooks/use-purchase-store";
+import {
+  usePurchaseRecords,
+  useDeletePurchaseRecord,
+  useUpdatePurchaseRecord,
+} from "@/hooks/use-purchase-store";
 
 export default function PurchaseBillsPage() {
   const { data: billsData = [], isLoading } = usePurchaseRecords("purchase_bill");
+  const deleteRecordMutation = useDeletePurchaseRecord();
+  const updateRecordMutation = useUpdatePurchaseRecord();
+
+  const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState("ALL");
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [selectedVendor, setSelectedVendor] = useState(null);
   const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
+
+  const filteredBills = billsData.filter((bill) => {
+    const q = searchTerm.toLowerCase();
+    const matchesSearch =
+      (bill.refNo || "").toLowerCase().includes(q) ||
+      (bill.vendor || "").toLowerCase().includes(q) ||
+      (bill.vendorInvoiceNo || "").toLowerCase().includes(q);
+    const matchesStatus =
+      statusFilter === "ALL" || (bill.status || "").toUpperCase() === statusFilter.toUpperCase();
+    return matchesSearch && matchesStatus;
+  });
 
   const handleRowClick = (bill) => {
     setSelectedVendor({
       name: bill.vendor,
       type: "Material Supplier",
-      initial: bill.vendor.charAt(0),
-      balance: bill.balance !== "₹0.00" ? bill.balance : "₹10,800.00",
+      initial: (bill.vendor || "V").charAt(0),
+      balance: bill.amount || "₹0.00",
       overdueDays: bill.status === "OVERDUE" ? 14 : 0,
     });
     setIsDrawerOpen(true);
   };
 
+  const handleDeleteBill = (e, bill) => {
+    e.stopPropagation();
+    const idToDelete = bill.id || bill.refNo;
+    deleteRecordMutation.mutate(idToDelete, {
+      onSuccess: () => {
+        toast.success(`Purchase Bill ${bill.refNo || bill.id} deleted successfully!`);
+      },
+      onError: (err) => {
+        toast.error(`Failed to delete bill: ${err?.message}`);
+      },
+    });
+  };
+
+  const handleTogglePaidStatus = (e, bill) => {
+    e.stopPropagation();
+    const idToUpdate = bill.id || bill.refNo;
+    const newStatus = bill.status === "PAID" ? "UNPAID" : "PAID";
+    updateRecordMutation.mutate(
+      { id: idToUpdate, updates: { status: newStatus } },
+      {
+        onSuccess: () => {
+          toast.success(`Bill ${bill.refNo || bill.id} marked as ${newStatus}!`);
+        },
+        onError: (err) => {
+          toast.error(`Failed to update status: ${err?.message}`);
+        },
+      }
+    );
+  };
+
   const getStatusBadge = (status) => {
-    switch (status) {
+    const s = (status || "").toUpperCase();
+    switch (s) {
       case "PAID":
         return (
           <span className="px-2.5 py-1 rounded-md text-[10px] font-black bg-emerald-100/80 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400">
@@ -36,9 +86,10 @@ export default function PurchaseBillsPage() {
           </span>
         );
       case "OVERDUE":
+      case "UNPAID":
         return (
           <span className="px-2.5 py-1 rounded-md text-[10px] font-black bg-rose-100/80 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400">
-            OVERDUE
+            {s}
           </span>
         );
       case "PARTIAL":
@@ -48,8 +99,18 @@ export default function PurchaseBillsPage() {
             PARTIAL
           </span>
         );
+      case "CANCELLED":
+        return (
+          <span className="px-2.5 py-1 rounded-md text-[10px] font-black bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+            CANCELLED
+          </span>
+        );
       default:
-        return <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-700">{status}</span>;
+        return (
+          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300">
+            {status || "DRAFT"}
+          </span>
+        );
     }
   };
 
@@ -72,7 +133,7 @@ export default function PurchaseBillsPage() {
         <div className="flex items-center gap-3">
           <button
             onClick={() => setIsQuickAddOpen(true)}
-            className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-md shadow-blue-600/25 transition active:scale-95"
+            className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-md shadow-blue-600/25 transition active:scale-95 cursor-pointer"
           >
             <Plus size={16} className="stroke-[3]" />
             <span>Create Bill</span>
@@ -93,7 +154,7 @@ export default function PurchaseBillsPage() {
         <div className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 shadow-xs flex flex-col justify-between">
           <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">UNPAID BILLS</span>
           <div className="text-2xl font-black text-rose-600 mt-1">
-            {billsData.filter(b => b.status === "UNPAID" || b.status === "OVERDUE").length}
+            {billsData.filter((b) => b.status === "UNPAID" || b.status === "OVERDUE").length}
           </div>
           <span className="text-[11px] font-semibold text-slate-400 mt-1">Action required priority</span>
         </div>
@@ -101,61 +162,120 @@ export default function PurchaseBillsPage() {
         <div className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 shadow-xs flex flex-col justify-between">
           <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">PAID BILLS</span>
           <div className="text-2xl font-black text-emerald-600 mt-1">
-            {billsData.filter(b => b.status === "PAID").length}
+            {billsData.filter((b) => b.status === "PAID").length}
           </div>
+          <span className="text-[11px] font-semibold text-emerald-600 mt-1">Fully settled</span>
         </div>
 
         <div className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 shadow-xs flex flex-col justify-between">
           <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">TOTAL VENDORS</span>
           <div className="text-2xl font-black text-slate-900 dark:text-white mt-1">
-            {new Set(billsData.map(b => b.vendor)).size}
+            {new Set(billsData.map((b) => b.vendor)).size}
           </div>
-          <span className="text-[11px] font-semibold text-slate-400 mt-1">Active firm partnerships</span>
+          <span className="text-[11px] font-semibold text-slate-400 mt-1">Active partnerships</span>
+        </div>
+      </div>
+
+      {/* Filter & Search Toolbar */}
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs">
+        <div className="relative w-full sm:w-80">
+          <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+          <input
+            type="text"
+            placeholder="Search bill no, vendor, invoice no..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 pl-10 pr-4 py-2 text-xs font-bold text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+
+        <div className="flex items-center gap-3 w-full sm:w-auto">
+          <div className="flex items-center gap-2">
+            <Filter size={14} className="text-slate-400" />
+            <span className="text-xs font-bold text-slate-500">Status:</span>
+          </div>
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 px-3 py-2 text-xs font-bold text-slate-900 dark:text-white focus:outline-none cursor-pointer"
+          >
+            <option value="ALL">All Statuses</option>
+            <option value="UNPAID">Unpaid</option>
+            <option value="PAID">Paid</option>
+            <option value="PARTIAL">Partial</option>
+            <option value="CANCELLED">Cancelled</option>
+          </select>
         </div>
       </div>
 
       {/* Bills Table */}
       <div className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 shadow-xs space-y-4">
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse min-w-[750px]">
+          <table className="w-full text-left border-collapse min-w-[800px]">
             <thead>
               <tr className="border-b border-slate-100 dark:border-slate-800 text-[11px] font-bold text-slate-400 uppercase tracking-wider bg-slate-50/50 dark:bg-slate-800/30">
                 <th className="py-3 px-4">BILL NO.</th>
                 <th className="py-3 px-4">VENDOR</th>
+                <th className="py-3 px-4">VENDOR INVOICE</th>
                 <th className="py-3 px-4">BILL DATE</th>
                 <th className="py-3 px-4">DUE DATE</th>
                 <th className="py-3 px-4">AMOUNT</th>
                 <th className="py-3 px-4">STATUS</th>
-                <th className="py-3 px-4 text-right">ACTION</th>
+                <th className="py-3 px-4 text-right">ACTIONS</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-xs font-semibold">
-              {billsData.length > 0 ? (
-                billsData.map((row) => (
+              {isLoading ? (
+                <tr>
+                  <td colSpan={8} className="text-center py-8 text-slate-400 font-medium">
+                    Loading purchase bills...
+                  </td>
+                </tr>
+              ) : filteredBills.length > 0 ? (
+                filteredBills.map((row) => (
                   <tr
                     key={row.refNo || row.id}
                     onClick={() => handleRowClick(row)}
                     className="hover:bg-blue-50/40 dark:hover:bg-slate-800/50 cursor-pointer transition-colors"
                   >
-                    <td className="py-3.5 px-4 text-blue-600 dark:text-blue-400 font-extrabold">{row.refNo || row.id}</td>
+                    <td className="py-3.5 px-4 text-blue-600 dark:text-blue-400 font-extrabold">
+                      {row.refNo || row.id}
+                    </td>
                     <td className="py-3.5 px-4 text-slate-900 dark:text-white font-bold">{row.vendor}</td>
+                    <td className="py-3.5 px-4 text-slate-600 dark:text-slate-400">
+                      {row.vendorInvoiceNo || "—"}
+                    </td>
                     <td className="py-3.5 px-4 text-slate-600 dark:text-slate-400">{row.billDate || "Today"}</td>
                     <td className="py-3.5 px-4 text-slate-600 dark:text-slate-400">{row.dueDate || "N/A"}</td>
-                    <td className="py-3.5 px-4 text-slate-900 dark:text-white font-black">{row.amount}</td>
+                    <td className="py-3.5 px-4 text-slate-900 dark:text-white font-black">{row.amount || "₹0.00"}</td>
                     <td className="py-3.5 px-4">{getStatusBadge(row.status)}</td>
                     <td className="py-3.5 px-4 text-right" onClick={(e) => e.stopPropagation()}>
-                      <button
-                        onClick={() => handleRowClick(row)}
-                        className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
-                      >
-                        <MoreVertical size={16} />
-                      </button>
+                      <div className="flex items-center justify-end gap-1.5">
+                        <button
+                          onClick={(e) => handleTogglePaidStatus(e, row)}
+                          title={row.status === "PAID" ? "Mark Unpaid" : "Mark as Paid"}
+                          className={`p-1.5 rounded-lg border transition cursor-pointer ${
+                            row.status === "PAID"
+                              ? "border-emerald-200 text-emerald-600 bg-emerald-50 hover:bg-emerald-100 dark:border-emerald-800 dark:bg-emerald-950/30"
+                              : "border-slate-200 text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                          }`}
+                        >
+                          <CheckCircle2 size={15} />
+                        </button>
+                        <button
+                          onClick={(e) => handleDeleteBill(e, row)}
+                          title="Delete Bill"
+                          className="p-1.5 rounded-lg border border-rose-200 text-rose-500 hover:bg-rose-50 dark:border-rose-900/50 dark:hover:bg-rose-950/30 transition cursor-pointer"
+                        >
+                          <Trash2 size={15} />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))
               ) : (
                 <tr>
-                  <td colSpan={7} className="text-center py-8 text-slate-400 font-medium">
+                  <td colSpan={8} className="text-center py-8 text-slate-400 font-medium">
                     No purchase bills found. Click &quot;Create Bill&quot; above to add one.
                   </td>
                 </tr>

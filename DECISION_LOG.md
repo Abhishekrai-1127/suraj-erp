@@ -248,6 +248,19 @@ This document records key technical and architectural decisions made in the code
 
 ---
 
+## 2026-09-13 — Purchase Module REST Integration, Sequential Ref Numbering & Full CRUD Synchronization
+- **Decision**:
+  - Created `src/services/purchase-api.js` adhering strictly to NestJS `PurchaseRecordType` (`rfo`, `purchase_bill`, `purchased_machinery`), `RfoPriority` (`NORMAL`, `HIGH`, `URGENT`), and `CreatePurchaseRecordDto` / `UpdatePurchaseRecordDto`.
+  - Added `@Get('next-ref-no')` and `getNextRefNo()` to `central-erp-backend` Purchase controller and service, providing deterministic sequential zero-padded reference numbering (`PB-YYYY-XXXX`, `RFO-YYYY-XXXX`, `MAC-YYYY-XXXX`) replacing legacy random number generation.
+  - Implemented `generateLocalSequentialPurchaseRefNo` in `purchase-api.js` as an offline-first fallback.
+  - Added explicit UI status dropdown selectors in `PurchaseAddModal` across Purchase Bill (`UNPAID`, `PAID`, `PARTIAL`, `DRAFT`, `CANCELLED`), RFO (`PENDING APPROVAL`, `APPROVED`, `CANCELLED`), and Machinery (`OPERATIONAL`, `UNDER MAINTENANCE`, `CALIBRATION DUE`, `INACTIVE`).
+  - Added `if (!isOpen) return null;` guard, backdrop dismissal, and ESC key listener to `PurchaseAddModal`.
+  - Upgraded Purchase sub-pages (`/purchase/bills`, `/purchase/rfo`, `/purchase/machinery`, `/purchase`) with row actions (delete, status updates, approval toggles), dynamic search, and status filtering.
+- **Why**:
+  - The Purchase module was disconnected from the live backend REST API, lacked row deletion and editing capabilities, and generated random reference IDs.
+- **Trade-offs Accepted**:
+  - `purchaseApi` uses a hybrid offline-first strategy: queries and mutations call the live backend API first, falling back to local storage and browser events when offline or during backend cold-starts, ensuring seamless continuous operation for factory personnel.
+
 ## 2026-09-13 — UI Sales Document Status Options & Backend Enum Alignment
 - **Decision**:
   - Added dedicated status selection dropdowns directly into the UI forms across Sales Order, Quotation, and Invoice tabs in `QuickAddModal`.

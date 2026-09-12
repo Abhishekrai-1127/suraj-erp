@@ -32,9 +32,13 @@ export default function PurchaseAnalyticsPage() {
       setRecords(fetchPurchaseRecords());
     };
     loadData();
+    window.addEventListener("suraj_erp_purchase_updated", loadData);
+    window.addEventListener("suraj_erp_document_created", loadData);
     window.addEventListener("erp_document_created", loadData);
     window.addEventListener("storage", loadData);
     return () => {
+      window.removeEventListener("suraj_erp_purchase_updated", loadData);
+      window.removeEventListener("suraj_erp_document_created", loadData);
       window.removeEventListener("erp_document_created", loadData);
       window.removeEventListener("storage", loadData);
     };

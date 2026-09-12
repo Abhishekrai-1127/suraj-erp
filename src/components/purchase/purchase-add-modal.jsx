@@ -22,6 +22,7 @@ import {
 import { toast } from "sonner";
 import { saveDocument, saveCustomer, getStoredCustomers } from "@/lib/erp-storage";
 import { useCreatePurchaseRecord } from "@/hooks/use-purchase-store";
+import { purchaseApi, generateLocalSequentialPurchaseRefNo } from "@/services/purchase-api";
 
 // Master Vendor list for Autocomplete (Tailored for Procurement & Machinery)
 const MOCK_VENDORS = [];
@@ -62,27 +63,29 @@ export default function PurchaseAddModal({ isOpen, onClose, initialTab = "bill" 
 
   // Purchase Bill Form Fields
   const [billForm, setBillForm] = useState(() => ({
-    refNo: "PB-" + new Date().getFullYear() + "-" + Math.floor(1000 + Math.random() * 9000),
+    refNo: generateLocalSequentialPurchaseRefNo("purchase_bill"),
     billDate: new Date().toISOString().split("T")[0],
     dueDate: new Date(Date.now() + 30 * 86400000).toISOString().split("T")[0],
     paymentTerms: "Net 30 Days",
     vendorInvoiceNo: "",
+    status: "UNPAID",
     notes: "",
   }));
 
   // RFO (Request For Order) Form Fields
   const [rfoForm, setRfoForm] = useState(() => ({
-    refNo: "RFO-" + new Date().getFullYear() + "-" + Math.floor(1000 + Math.random() * 9000),
+    refNo: generateLocalSequentialPurchaseRefNo("rfo"),
     requestDate: new Date().toISOString().split("T")[0],
     targetDeliveryDate: new Date(Date.now() + 14 * 86400000).toISOString().split("T")[0],
     department: "Toolroom & Precision Machining",
-    priority: "MEDIUM",
+    priority: "NORMAL",
+    status: "PENDING APPROVAL",
     justification: "",
   }));
 
   // Purchased Machinery Form Fields
   const [machineryForm, setMachineryForm] = useState(() => ({
-    assetTag: "MAC-" + new Date().getFullYear() + "-" + Math.floor(100 + Math.random() * 900),
+    assetTag: generateLocalSequentialPurchaseRefNo("purchased_machinery"),
     name: "",
     model: "",
     category: "CNC Machining",
@@ -148,6 +151,50 @@ export default function PurchaseAddModal({ isOpen, onClose, initialTab = "bill" 
       return () => clearTimeout(timer);
     }
   }, [isOpen, activeTab]);
+
+  // Synchronize next sequential reference number on modal open or tab switch
+  useEffect(() => {
+    if (!isOpen) return;
+    let isCancelled = false;
+
+    async function syncRefNo() {
+      try {
+        if (activeTab === "bill") {
+          const nextRef = await purchaseApi.getNextRefNo("purchase_bill");
+          if (!isCancelled && nextRef) {
+            setBillForm((prev) => ({ ...prev, refNo: nextRef }));
+          }
+        } else if (activeTab === "rfo") {
+          const nextRef = await purchaseApi.getNextRefNo("rfo");
+          if (!isCancelled && nextRef) {
+            setRfoForm((prev) => ({ ...prev, refNo: nextRef }));
+          }
+        } else if (activeTab === "machinery") {
+          const nextRef = await purchaseApi.getNextRefNo("purchased_machinery");
+          if (!isCancelled && nextRef) {
+            setMachineryForm((prev) => ({ ...prev, assetTag: nextRef }));
+          }
+        }
+      } catch (err) {
+        console.warn("[PurchaseAddModal] Could not fetch next ref number:", err);
+      }
+    }
+
+    syncRefNo();
+    return () => {
+      isCancelled = true;
+    };
+  }, [isOpen, activeTab]);
+
+  // Handle ESC key listener
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isOpen, onClose]);
 
   useEffect(() => {
     function handleClickOutside(event) {
@@ -306,18 +353,18 @@ export default function PurchaseAddModal({ isOpen, onClose, initialTab = "bill" 
 
     if (activeTab === "bill") {
       payload = {
-        id: Date.now(),
+        id: `PUR-${Date.now()}`,
         type: "purchase_bill",
         refNo: billForm.refNo,
         vendor: vendorName,
         initials: vendorCode,
         date: dateToday,
-        billDate: dateToday,
+        billDate: billForm.billDate,
         dueDate: billForm.dueDate,
         amount: formattedAmount,
         numericAmount: grandTotal,
-        status: "UNPAID",
-        paymentStatus: "UNPAID",
+        status: billForm.status || "UNPAID",
+        paymentStatus: billForm.status || "UNPAID",
         vendorInvoiceNo: billForm.vendorInvoiceNo,
         items: formattedItems,
       };
@@ -326,19 +373,19 @@ export default function PurchaseAddModal({ isOpen, onClose, initialTab = "bill" 
       });
     } else if (activeTab === "rfo") {
       payload = {
-        id: Date.now(),
+        id: `PUR-${Date.now()}`,
         type: "rfo",
         refNo: rfoForm.refNo,
         vendor: vendorName,
         initials: vendorCode,
         date: dateToday,
-        requestDate: dateToday,
+        requestDate: rfoForm.requestDate,
         targetDeliveryDate: rfoForm.targetDeliveryDate,
         amount: formattedAmount,
         numericAmount: grandTotal,
-        status: "PENDING APPROVAL",
+        status: rfoForm.status || "PENDING APPROVAL",
         department: rfoForm.department,
-        priority: rfoForm.priority,
+        priority: rfoForm.priority || "NORMAL",
         items: formattedItems,
       };
       toast.success(`Request For Order ${rfoForm.refNo} submitted successfully!`);
@@ -347,7 +394,7 @@ export default function PurchaseAddModal({ isOpen, onClose, initialTab = "bill" 
       const formattedMacCost = `₹${macCostNum.toLocaleString("en-IN", { minimumFractionDigits: 2 })}`;
 
       payload = {
-        id: Date.now(),
+        id: `PUR-${Date.now()}`,
         type: "purchased_machinery",
         assetTag: machineryForm.assetTag,
         refNo: machineryForm.assetTag,
@@ -358,9 +405,10 @@ export default function PurchaseAddModal({ isOpen, onClose, initialTab = "bill" 
         initials: vendorCode,
         purchaseDate: machineryForm.purchaseDate,
         cost: formattedMacCost,
+        numericCost: macCostNum,
         warrantyExpiry: machineryForm.warrantyExpiry,
         location: machineryForm.location,
-        status: machineryForm.status,
+        status: machineryForm.status || "OPERATIONAL",
       };
       toast.success(`Purchased Machinery Asset ${machineryForm.assetTag} registered!`, {
         description: `${machineryForm.name} added to capital assets registry.`,
@@ -401,9 +449,17 @@ export default function PurchaseAddModal({ isOpen, onClose, initialTab = "bill" 
 
   const currentTabObj = tabs.find((t) => t.id === activeTab) || tabs[0];
 
+  if (!isOpen) return null;
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-3 sm:p-6 animate-in fade-in duration-200 overflow-y-auto">
-      <div className="relative w-full max-w-4xl my-auto rounded-2xl bg-white dark:bg-slate-900 p-4 sm:p-7 shadow-2xl border border-slate-100 dark:border-slate-800 max-h-[92vh] flex flex-col justify-between overflow-hidden">
+    <div
+      onClick={onClose}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-3 sm:p-6 animate-in fade-in duration-200 overflow-y-auto"
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="relative w-full max-w-4xl my-auto rounded-2xl bg-white dark:bg-slate-900 p-4 sm:p-7 shadow-2xl border border-slate-100 dark:border-slate-800 max-h-[92vh] flex flex-col justify-between overflow-hidden"
+      >
         
         {/* Modal Header */}
         <div className="flex items-center justify-between pb-3 sm:pb-4 border-b border-slate-100 dark:border-slate-800 shrink-0">
@@ -551,7 +607,7 @@ export default function PurchaseAddModal({ isOpen, onClose, initialTab = "bill" 
           {/* TAB 1: PURCHASE BILL SPECIFIC FIELDS */}
           {activeTab === "bill" && (
             <div className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 <div>
                   <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
                     Purchase Bill Ref Number
@@ -576,6 +632,23 @@ export default function PurchaseAddModal({ isOpen, onClose, initialTab = "bill" 
                     onChange={(e) => setBillForm({ ...billForm, vendorInvoiceNo: e.target.value })}
                     className="w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-800/50 px-3.5 py-2 text-xs font-bold text-slate-900 dark:text-white"
                   />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    Bill Status
+                  </label>
+                  <select
+                    value={billForm.status || "UNPAID"}
+                    onChange={(e) => setBillForm({ ...billForm, status: e.target.value })}
+                    className="w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-800/50 px-3.5 py-2 text-xs font-bold text-slate-900 dark:text-white"
+                  >
+                    <option value="UNPAID">UNPAID (Pending Payment)</option>
+                    <option value="PAID">PAID (Settled)</option>
+                    <option value="PARTIAL">PARTIAL (Partially Paid)</option>
+                    <option value="DRAFT">DRAFT</option>
+                    <option value="CANCELLED">CANCELLED</option>
+                  </select>
                 </div>
 
                 <div>
@@ -669,6 +742,21 @@ export default function PurchaseAddModal({ isOpen, onClose, initialTab = "bill" 
                       <option value="CUSTOM_OPTION">+ Enter Custom Department (Type manually)...</option>
                     </select>
                   )}
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    Approval Status
+                  </label>
+                  <select
+                    value={rfoForm.status || "PENDING APPROVAL"}
+                    onChange={(e) => setRfoForm({ ...rfoForm, status: e.target.value })}
+                    className="w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-800/50 px-3.5 py-2 text-xs font-bold text-slate-900 dark:text-white"
+                  >
+                    <option value="PENDING APPROVAL">PENDING APPROVAL</option>
+                    <option value="APPROVED">APPROVED</option>
+                    <option value="CANCELLED">CANCELLED</option>
+                  </select>
                 </div>
 
                 <div>
@@ -878,6 +966,22 @@ export default function PurchaseAddModal({ isOpen, onClose, initialTab = "bill" 
                       <option value="CUSTOM_OPTION">+ Enter Custom Location (Type manually)...</option>
                     </select>
                   )}
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    Machinery Operational Status
+                  </label>
+                  <select
+                    value={machineryForm.status || "OPERATIONAL"}
+                    onChange={(e) => setMachineryForm({ ...machineryForm, status: e.target.value })}
+                    className="w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-800/50 px-3.5 py-2 text-xs font-bold text-slate-900 dark:text-white"
+                  >
+                    <option value="OPERATIONAL">OPERATIONAL (Active)</option>
+                    <option value="UNDER MAINTENANCE">UNDER MAINTENANCE</option>
+                    <option value="CALIBRATION DUE">CALIBRATION DUE</option>
+                    <option value="INACTIVE">INACTIVE (Decommissioned)</option>
+                  </select>
                 </div>
               </div>
             </div>

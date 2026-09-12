@@ -5,7 +5,11 @@ import { Download, Upload, Plus } from "lucide-react";
 import { toast } from "sonner";
 import PurchaseAddModal from "@/components/purchase/purchase-add-modal";
 
-export default function PurchaseHeader({ title = "Purchase Management", subtitle = "Manage vendor RFOs (Request For Order), purchase bills, and procurement analytics." }) {
+export default function PurchaseHeader({
+  title = "Purchase Management",
+  subtitle = "Manage vendor RFOs (Request For Order), purchase bills, and procurement analytics.",
+  initialTab = "bill",
+}) {
   const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
 
   return (
@@ -28,7 +32,7 @@ export default function PurchaseHeader({ title = "Purchase Management", subtitle
         <div className="flex items-center gap-3 flex-wrap">
           <button
             onClick={() => toast.success("Purchase report exported successfully!")}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 shadow-2xs transition"
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 shadow-2xs transition cursor-pointer"
           >
             <Download size={15} />
             <span>Export</span>
@@ -36,7 +40,7 @@ export default function PurchaseHeader({ title = "Purchase Management", subtitle
 
           <button
             onClick={() => toast.info("Importing purchase records...")}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 shadow-2xs transition"
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 shadow-2xs transition cursor-pointer"
           >
             <Upload size={15} />
             <span>Import</span>
@@ -44,7 +48,7 @@ export default function PurchaseHeader({ title = "Purchase Management", subtitle
 
           <button
             onClick={() => setIsQuickAddOpen(true)}
-            className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-md shadow-blue-600/25 transition active:scale-95"
+            className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-md shadow-blue-600/25 transition active:scale-95 cursor-pointer"
           >
             <Plus size={16} className="stroke-[3]" />
             <span>Create Purchase Record</span>
@@ -52,7 +56,11 @@ export default function PurchaseHeader({ title = "Purchase Management", subtitle
         </div>
       </div>
 
-      <PurchaseAddModal isOpen={isQuickAddOpen} onClose={() => setIsQuickAddOpen(false)} />
+      <PurchaseAddModal
+        isOpen={isQuickAddOpen}
+        onClose={() => setIsQuickAddOpen(false)}
+        initialTab={initialTab}
+      />
     </>
   );
 }

@@ -1,9 +1,8 @@
 "use client";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { getStoredDocuments, saveDocument, getDeletedDocumentIds, getStoredCustomers, saveCustomer } from "@/lib/erp-storage";
-// BACKEND PREPARATION: Uncomment line below when backend API endpoints are ready in 2 days
-// import axios from "axios";
+import { purchaseApi } from "@/services/purchase-api";
+import { getStoredDocuments, getDeletedDocumentIds } from "@/lib/erp-storage";
 
 // Clean empty default state for Purchase Domain (no mock data)
 export const DEFAULT_MOCK_RFOS = [];
@@ -20,31 +19,22 @@ export function fetchPurchaseRecords(typeFilter = null) {
     const storedDocs = getStoredDocuments();
     const deletedIds = getDeletedDocumentIds();
 
-    // Map saved documents
     let records = [];
     if (typeFilter === "rfo") {
-      const storedRfos = storedDocs.filter(d => d.type === "rfo");
-      const seen = new Set(storedRfos.map(d => d.refNo || d.id));
-      const filteredDefaults = DEFAULT_MOCK_RFOS.filter(d => !deletedIds.includes(d.id) && !seen.has(d.id));
-      records = [...storedRfos, ...filteredDefaults];
+      const storedRfos = storedDocs.filter((d) => d.type === "rfo");
+      records = storedRfos.filter((d) => !deletedIds.includes(d.id) && !deletedIds.includes(d.refNo));
     } else if (typeFilter === "purchase_bill") {
-      const storedBills = storedDocs.filter(d => d.type === "purchase_bill");
-      const seen = new Set(storedBills.map(d => d.refNo || d.id));
-      const filteredDefaults = DEFAULT_MOCK_PURCHASE_BILLS.filter(d => !deletedIds.includes(d.id) && !seen.has(d.id));
-      records = [...storedBills, ...filteredDefaults];
+      const storedBills = storedDocs.filter((d) => d.type === "purchase_bill");
+      records = storedBills.filter((d) => !deletedIds.includes(d.id) && !deletedIds.includes(d.refNo));
     } else if (typeFilter === "purchased_machinery") {
-      const storedMachinery = storedDocs.filter(d => d.type === "purchased_machinery");
-      const seen = new Set(storedMachinery.map(d => d.refNo || d.assetTag || d.id));
-      const filteredDefaults = DEFAULT_MOCK_MACHINERY_ASSETS.filter(d => !deletedIds.includes(d.id) && !seen.has(d.id));
-      records = [...storedMachinery, ...filteredDefaults];
+      const storedMachinery = storedDocs.filter((d) => d.type === "purchased_machinery");
+      records = storedMachinery.filter(
+        (d) => !deletedIds.includes(d.id) && !deletedIds.includes(d.refNo) && !deletedIds.includes(d.assetTag)
+      );
     } else {
-      // Return all purchase records
       const purchaseTypes = ["rfo", "purchase_bill", "purchased_machinery"];
-      const storedPurchase = storedDocs.filter(d => purchaseTypes.includes(d.type));
-      const seen = new Set(storedPurchase.map(d => d.refNo || d.id));
-      const defaultAll = [...DEFAULT_MOCK_RFOS, ...DEFAULT_MOCK_PURCHASE_BILLS, ...DEFAULT_MOCK_MACHINERY_ASSETS];
-      const filteredDefaults = defaultAll.filter(d => !deletedIds.includes(d.id) && !seen.has(d.id));
-      records = [...storedPurchase, ...filteredDefaults];
+      const storedPurchase = storedDocs.filter((d) => purchaseTypes.includes(d.type));
+      records = storedPurchase.filter((d) => !deletedIds.includes(d.id) && !deletedIds.includes(d.refNo));
     }
 
     return records;
@@ -57,14 +47,20 @@ export function fetchPurchaseRecords(typeFilter = null) {
 /**
  * TanStack React Query custom hook to fetch purchase records in real time
  */
-export function usePurchaseRecords(typeFilter = null) {
+export function usePurchaseRecords(typeFilter = null, params = {}) {
   return useQuery({
-    queryKey: ["purchaseRecords", typeFilter || "all"],
+    queryKey: ["purchaseRecords", typeFilter || "all", params],
     queryFn: async () => {
-      // BACKEND PREPARATION: Uncomment below when backend API endpoints are ready in 2 days
-      // const response = await axios.get(`/api/purchase?type=${typeFilter || ''}`);
-      // return response.data;
-      return fetchPurchaseRecords(typeFilter);
+      try {
+        const records = await purchaseApi.getRecords({
+          type: typeFilter,
+          ...params,
+        });
+        return records;
+      } catch (err) {
+        console.warn("[usePurchaseRecords] API query failed, falling back to local storage:", err?.message);
+        return fetchPurchaseRecords(typeFilter);
+      }
     },
     staleTime: 1000 * 5, // 5 seconds
   });
@@ -78,29 +74,32 @@ export function useCreatePurchaseRecord() {
 
   return useMutation({
     mutationFn: async (newRecord) => {
-      // BACKEND PREPARATION: Uncomment below when backend API endpoints are ready in 2 days
-      // const response = await axios.post('/api/purchase', newRecord);
-      // return response.data;
-
-      if (newRecord.type === "vendor") {
-        saveCustomer({
-          id: "vend-" + Date.now(),
-          name: newRecord.companyName || newRecord.name,
-          code: newRecord.code || "VN",
-          category: newRecord.category || "Supplier",
-          taxId: newRecord.gstId || "GST-VENDOR",
-        });
-      } else {
-        saveDocument(newRecord);
-      }
-      return newRecord;
+      return await purchaseApi.createRecord(newRecord);
     },
     onSuccess: () => {
-      // Automatically invalidate and refetch all purchase queries across the application
       queryClient.invalidateQueries({ queryKey: ["purchaseRecords"] });
       if (typeof window !== "undefined") {
         window.dispatchEvent(new Event("suraj_erp_purchase_updated"));
         window.dispatchEvent(new Event("suraj_erp_document_created"));
+      }
+    },
+  });
+}
+
+/**
+ * TanStack React Query mutation hook to update purchase records
+ */
+export function useUpdatePurchaseRecord() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ id, updates }) => {
+      return await purchaseApi.updateRecord(id, updates);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["purchaseRecords"] });
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new Event("suraj_erp_purchase_updated"));
       }
     },
   });
@@ -114,18 +113,7 @@ export function useDeletePurchaseRecord() {
 
   return useMutation({
     mutationFn: async (recordId) => {
-      // BACKEND PREPARATION: Uncomment below when backend API endpoints are ready in 2 days
-      // await axios.delete(`/api/purchase/${recordId}`);
-
-      if (typeof window !== "undefined") {
-        const deletedKey = "suraj_erp_deleted_documents";
-        const current = getDeletedDocumentIds();
-        if (!current.includes(recordId)) {
-          current.push(recordId);
-          localStorage.setItem(deletedKey, JSON.stringify(current));
-        }
-      }
-      return recordId;
+      return await purchaseApi.deleteRecord(recordId);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["purchaseRecords"] });

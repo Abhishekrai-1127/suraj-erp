@@ -1198,6 +1198,47 @@ This document provides a start-to-finish audit trail for every feature implement
   - `pnpm exec eslint src/app/(dashboard)/sales/analytics/page.js` passed with 0 errors.
   - `pnpm run build` compiled 38/38 routes in 5.7s with exit code 0.
 
+---
+
+### Task #063: Purchase Module Modernization, Sequential Ref Numbering & Full CRUD REST Integration
+- **Date**: 2026-09-13
+- **Status**: ✅ Completed
+- **1. Discovery & Scoping**:
+  - User requested fixing the Purchase module ("now need to fix the purchse").
+  - Audit revealed:
+    1. `src/hooks/use-purchase-store.js` lacked REST API integration and relied on commented-out axios placeholders and raw local storage.
+    2. Missing `purchaseApi` service conforming to Central ERP backend `PurchaseRecordType` (`rfo`, `purchase_bill`, `purchased_machinery`), `RfoPriority` (`NORMAL`, `HIGH`, `URGENT`), and DTO specifications.
+    3. `PurchaseAddModal` generated pseudo-random IDs (`Math.random() * 9000`) instead of deterministic sequential numbers (`PB-YYYY-XXXX`, `RFO-YYYY-XXXX`, `MAC-YYYY-XXXX`).
+    4. `PurchaseAddModal` hardcoded `"UNPAID"` for bills and `"PENDING APPROVAL"` for RFOs without UI dropdown selectors.
+    5. `PurchaseAddModal` was missing `if (!isOpen) return null;` guard and backdrop/ESC key dismissal listeners.
+    6. Purchase Bills, RFO, and Machinery tables lacked row actions (delete buttons, quick status toggle, approve/cancel triggers).
+    7. Backend `central-erp-backend` lacked `GET /purchase/next-ref-no` sequential numbering endpoint.
+- **2. Execution & What Was Done**:
+  - **Backend Updates (`central-erp-backend`)**:
+    - Added `@Get('next-ref-no')` endpoint in `purchase.controller.ts` before `@Get(':id')`.
+    - Added `getNextRefNo(type)` in `purchase.service.ts` querying `purchase_records` table and generating next zero-padded sequence (`PB-2026-0001`, `RFO-2026-0001`, `MAC-2026-0001`).
+    - Added auto-generation of sequential `refNo` in `createPurchaseRecord` if missing.
+  - **Frontend API & Store (`suraj-erp`)**:
+    - Created `src/services/purchase-api.js` with `PurchaseRecordType`, `RfoPriority`, `PurchaseDocStatus`, `normalizePurchaseType`, `normalizePurchaseStatus`, `generateLocalSequentialPurchaseRefNo`, and `purchaseApi` CRUD methods with resilient offline fallback to `erp-storage.js`.
+    - Updated `src/hooks/use-purchase-store.js`: wired `usePurchaseRecords` to `purchaseApi.getRecords`, `useCreatePurchaseRecord` to `purchaseApi.createRecord`, added `useUpdatePurchaseRecord`, and wired `useDeletePurchaseRecord` to `purchaseApi.deleteRecord` with automatic React Query cache invalidation and custom window events.
+  - **Purchase Modal (`src/components/purchase/purchase-add-modal.jsx`)**:
+    - Replaced `Math.random()` seeds with `generateLocalSequentialPurchaseRefNo`.
+    - Added auto-synchronization with `purchaseApi.getNextRefNo(activeTab)` on modal open / tab switch.
+    - Added UI status dropdowns in Purchase Bill tab (`UNPAID`, `PAID`, `PARTIAL`, `DRAFT`, `CANCELLED`) and RFO tab (`PENDING APPROVAL`, `APPROVED`, `CANCELLED`).
+    - Added Machinery Operational Status dropdown (`OPERATIONAL`, `UNDER MAINTENANCE`, `CALIBRATION DUE`, `INACTIVE`).
+    - Added `if (!isOpen) return null;` guard and backdrop click / Escape key dismissal listeners.
+  - **Purchase Sub-Pages**:
+    - `src/components/purchase/purchase-header.jsx`: Added `initialTab` prop propagation to open modal on relevant tab.
+    - `src/app/(dashboard)/purchase/bills/page.js`: Added search filter toolbar, status filter (`ALL`, `UNPAID`, `PAID`, `PARTIAL`, `CANCELLED`), mark paid toggle button, and deletion action with toast alerts.
+    - `src/app/(dashboard)/purchase/rfo/page.js`: Added Actions column with quick Approve, Cancel, and Delete buttons connected to `useUpdatePurchaseRecord` and `useDeletePurchaseRecord`.
+    - `src/app/(dashboard)/purchase/machinery/page.js`: Added Actions column with live status dropdown selector and asset deletion button, wired search, status, category, and location filters dynamically to actual asset records.
+    - `src/app/(dashboard)/purchase/page.js`: Purged static/hardcoded text ("PB-2023-9015", "142 entries"), wired dynamic KPIs, search, type, and status filtering, and added record deletion action.
+    - `src/app/(dashboard)/purchase/analytics/page.js`: Added `suraj_erp_purchase_updated` and `suraj_erp_document_created` event listeners.
+- **3. Verification**:
+  - Backend Build: `nest build` in `central-erp-backend` passed cleanly with exit code 0.
+  - Frontend Lint: `pnpm exec eslint src/services/purchase-api.js src/hooks/use-purchase-store.js src/components/purchase/ src/app/(dashboard)/purchase/` passed with 0 errors and 0 warnings.
+  - Frontend Production Build: `pnpm run build` compiled all 38 static routes cleanly in 5.4s with exit code 0.
+
 
 
 
