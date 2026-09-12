@@ -8,46 +8,10 @@ import PurchaseAddModal from "@/components/purchase/purchase-add-modal";
 import { Filter, Plus, MoreVertical, FileText } from "lucide-react";
 import { toast } from "sonner";
 
-const billsData = [
-  {
-    id: "BILL-2024-001",
-    vendor: "Tech Hub Solutions",
-    billDate: "Oct 12, 2023",
-    dueDate: "Oct 26, 2023",
-    amount: "₹4,250.60",
-    balance: "₹0.00",
-    status: "PAID",
-  },
-  {
-    id: "BILL-2024-002",
-    vendor: "NexGen Materials",
-    billDate: "Oct 14, 2023",
-    dueDate: "Oct 28, 2023",
-    amount: "₹12,800.00",
-    balance: "₹10,800.00",
-    status: "OVERDUE",
-  },
-  {
-    id: "BILL-2024-003",
-    vendor: "Global Freight Co.",
-    billDate: "Oct 18, 2023",
-    dueDate: "Nov 01, 2023",
-    amount: "₹850.40",
-    balance: "₹425.20",
-    status: "PARTIAL",
-  },
-  {
-    id: "BILL-2024-004",
-    vendor: "Skylight Agencies",
-    billDate: "Oct 20, 2023",
-    dueDate: "Nov 10, 2023",
-    amount: "₹3,100.00",
-    balance: "₹3,100.00",
-    status: "UNPAID",
-  },
-];
+import { usePurchaseRecords } from "@/hooks/use-purchase-store";
 
 export default function PurchaseBillsPage() {
+  const { data: billsData = [], isLoading } = usePurchaseRecords("purchase_bill");
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [selectedVendor, setSelectedVendor] = useState(null);
   const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
@@ -192,7 +156,7 @@ export default function PurchaseBillsPage() {
               ) : (
                 <tr>
                   <td colSpan={7} className="text-center py-8 text-slate-400 font-medium">
-                    No purchase bills found. Click "Create Bill" above to add one.
+                    No purchase bills found. Click &quot;Create Bill&quot; above to add one.
                   </td>
                 </tr>
               )}

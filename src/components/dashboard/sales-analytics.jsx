@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { ChevronDown } from "lucide-react";
 import {
@@ -13,45 +13,120 @@ import {
   Legend,
   ResponsiveContainer,
 } from "recharts";
+import { getStoredDocuments, getDeletedDocumentIds } from "@/lib/erp-storage";
+import { formatCurrency, parseAmount } from "@/lib/formatters";
 
-const data = [
-  { name: "Jan", Sales: 170000, Purchases: 95000 },
-  { name: "Feb", Sales: 260000, Purchases: 155000 },
-  { name: "Mar", Sales: 220000, Purchases: 180000 },
-  { name: "Apr", Sales: 360000, Purchases: 120000 },
-  { name: "May", Sales: 310000, Purchases: 110000 },
-  { name: "Jun", Sales: 482900, Purchases: 224000 },
-];
+// Custom tooltips matching theme
+function CustomTooltip({ active, payload, label }) {
+  if (active && payload && payload.length) {
+    return (
+      <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/60 p-3 rounded-xl shadow-lg">
+        <p className="text-xs font-semibold text-slate-800 dark:text-slate-100 mb-1.5">{label}</p>
+        <div className="space-y-1">
+          {payload.map((entry, index) => (
+            <p
+              key={index}
+              className="text-[11px] font-medium"
+              style={{ color: entry.color }}
+            >
+              {entry.name}: {formatCurrency(entry.value, 0)}
+            </p>
+          ))}
+        </div>
+      </div>
+    );
+  }
+  return null;
+}
 
 export default function SalesAnalytics() {
   const [mounted, setMounted] = useState(false);
+  const [documents, setDocuments] = useState([]);
 
   useEffect(() => {
+    /* eslint-disable react-hooks/set-state-in-effect */
     setMounted(true);
+    const loadDocs = () => {
+      const docs = getStoredDocuments();
+      const deletedIds = getDeletedDocumentIds();
+      setDocuments(docs.filter((d) => !deletedIds.includes(d.id || d.refNo)));
+    };
+    loadDocs();
+    window.addEventListener("erp_document_created", loadDocs);
+    window.addEventListener("storage", loadDocs);
+    return () => {
+      window.removeEventListener("erp_document_created", loadDocs);
+      window.removeEventListener("storage", loadDocs);
+    };
   }, []);
 
-  // Custom tooltips matching theme
-  const CustomTooltip = ({ active, payload, label }) => {
-    if (active && payload && payload.length) {
-      return (
-        <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/60 p-3 rounded-xl shadow-lg">
-          <p className="text-xs font-semibold text-slate-800 dark:text-slate-100 mb-1.5">{label}</p>
-          <div className="space-y-1">
-            {payload.map((entry, index) => (
-              <p
-                key={index}
-                className="text-[11px] font-medium"
-                style={{ color: entry.color }}
-              >
-                {entry.name}: ₹{entry.value.toLocaleString("en-IN")}
-              </p>
-            ))}
-          </div>
-        </div>
-      );
+  // Generate dynamic 6-month series from real documents
+  const { chartData, totalRevenue, totalPurchases, profitMargin } = useMemo(() => {
+    const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const now = new Date();
+    const months = [];
+
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      months.push({
+        name: monthNames[d.getMonth()],
+        year: d.getFullYear(),
+        monthIndex: d.getMonth(),
+        Sales: 0,
+        Purchases: 0,
+      });
     }
-    return null;
-  };
+
+    let revSum = 0;
+    let purchSum = 0;
+
+    documents.forEach((doc) => {
+      const docDate = doc.date ? new Date(doc.date) : null;
+      const amt = parseAmount(doc.amount || doc.grandTotal || doc.numericAmount);
+
+      if (doc.type === "invoice" || doc.type === "order") {
+        if ((doc.status || "").toLowerCase() !== "cancelled") {
+          revSum += amt;
+          if (docDate && !isNaN(docDate.getTime())) {
+            const targetMonth = months.find(
+              (m) => m.year === docDate.getFullYear() && m.monthIndex === docDate.getMonth()
+            );
+            if (targetMonth) {
+              targetMonth.Sales += amt;
+            }
+          } else {
+            // Assign to current active month if undated
+            if (months[months.length - 1]) {
+              months[months.length - 1].Sales += amt;
+            }
+          }
+        }
+      } else if (doc.type === "purchase_bill" || doc.type === "purchased_machinery") {
+        purchSum += amt;
+        if (docDate && !isNaN(docDate.getTime())) {
+          const targetMonth = months.find(
+            (m) => m.year === docDate.getFullYear() && m.monthIndex === docDate.getMonth()
+          );
+          if (targetMonth) {
+            targetMonth.Purchases += amt;
+          }
+        } else {
+          if (months[months.length - 1]) {
+            months[months.length - 1].Purchases += amt;
+          }
+        }
+      }
+    });
+
+    const margin = revSum > 0 ? (((revSum - purchSum) / revSum) * 100).toFixed(1) : "0.0";
+
+    return {
+      chartData: months,
+      totalRevenue: revSum,
+      totalPurchases: purchSum,
+      profitMargin: margin,
+    };
+  }, [documents]);
 
   return (
     <Card className="flex flex-col h-full justify-between">
@@ -72,7 +147,7 @@ export default function SalesAnalytics() {
         {mounted ? (
           <ResponsiveContainer width="100%" height="100%">
             <BarChart
-              data={data}
+              data={chartData}
               margin={{ top: 10, right: 10, left: 10, bottom: 0 }}
               barGap={5}
             >
@@ -102,7 +177,7 @@ export default function SalesAnalytics() {
                 width={55}
                 tickLine={false}
                 axisLine={false}
-                tickFormatter={(v) => `₹${v / 1000}k`}
+                tickFormatter={(v) => `₹${v >= 1000 ? `${Math.round(v / 1000)}k` : v}`}
                 tick={{ fill: "var(--foreground-secondary)", fontSize: 11, fontWeight: 550 }}
               />
               <Tooltip
@@ -145,19 +220,25 @@ export default function SalesAnalytics() {
         )}
       </CardContent>
 
-      {/* Bottom KPI Bar to fill space and match right column */}
+      {/* Bottom KPI Bar dynamically calculated from real documents */}
       <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-800/80 grid grid-cols-3 gap-2 text-center select-none">
         <div className="flex flex-col px-2">
-          <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">H1 Total Revenue</span>
-          <span className="text-xs font-black text-slate-800 dark:text-white mt-0.5">₹18,02,900</span>
+          <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Total Revenue</span>
+          <span suppressHydrationWarning className="text-xs font-black text-slate-800 dark:text-white mt-0.5">
+            {formatCurrency(totalRevenue, 0)}
+          </span>
         </div>
         <div className="flex flex-col border-x border-slate-100 dark:border-slate-800/80 px-2">
-          <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">H1 Purchases</span>
-          <span className="text-xs font-black text-slate-800 dark:text-white mt-0.5">₹8,84,000</span>
+          <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Purchases</span>
+          <span suppressHydrationWarning className="text-xs font-black text-slate-800 dark:text-white mt-0.5">
+            {formatCurrency(totalPurchases, 0)}
+          </span>
         </div>
         <div className="flex flex-col px-2">
-          <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Net Profit Margin</span>
-          <span className="text-xs font-black text-emerald-600 dark:text-emerald-400 mt-0.5">+51.0%</span>
+          <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Net Margin</span>
+          <span suppressHydrationWarning className={`text-xs font-black mt-0.5 ${Number(profitMargin) >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
+            {Number(profitMargin) >= 0 ? `+${profitMargin}%` : `${profitMargin}%`}
+          </span>
         </div>
       </div>
     </Card>

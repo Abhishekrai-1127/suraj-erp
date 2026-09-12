@@ -1,3 +1,5 @@
+"use client";
+
 import React, { useState, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
@@ -21,20 +23,26 @@ import { toast } from "sonner";
 export default function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
-  const [user, setUser] = useState({ name: "Abhishek Sharma", role: "Administrator" });
+  const [user, setUser] = useState({ name: "Admin User", role: "Administrator" });
 
   useEffect(() => {
+    /* eslint-disable react-hooks/set-state-in-effect */
     try {
       const stored = localStorage.getItem("suraj_erp_user");
       if (stored) {
         const parsed = JSON.parse(stored);
-        if (parsed.name) setUser(parsed);
+        if (parsed?.name) {
+          setUser(parsed);
+        }
       }
     } catch (e) {}
   }, []);
 
   const handleLogout = () => {
     try {
+      localStorage.removeItem("access_token");
+      localStorage.removeItem("refresh_token");
+      localStorage.removeItem("suraj_erp_access_token");
       localStorage.removeItem("suraj_erp_user");
     } catch (e) {}
     toast.success("Logged out successfully");
@@ -133,15 +141,15 @@ export default function Sidebar() {
           <div className="relative h-10 w-10 overflow-hidden rounded-full border-2 border-slate-700/40">
             <Image
               src="/avatar.png"
-              alt={user.name}
+              alt="User avatar"
               fill
               sizes="40px"
               className="object-cover"
             />
           </div>
           <div className="flex flex-col">
-            <span className="text-[13px] font-semibold text-white">{user.name}</span>
-            <span className="text-[10px] text-slate-400 font-medium">{user.role}</span>
+            <span suppressHydrationWarning className="text-[13px] font-semibold text-white">{user.name}</span>
+            <span suppressHydrationWarning className="text-[10px] text-slate-400 font-medium">{user.role}</span>
           </div>
         </div>
         <button

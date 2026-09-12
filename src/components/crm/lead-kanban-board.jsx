@@ -3,7 +3,12 @@
 import React from "react";
 import { Target, User, ChevronRight, Plus, Sparkles, CheckCircle2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
-import { saveLead, saveDeal, deleteLead, deleteDeal } from "@/lib/crm-storage";
+import {
+  useUpdateLeadMutation,
+  useUpdateDealMutation,
+  useDeleteLeadMutation,
+  useDeleteDealMutation,
+} from "@/hooks/use-crm-store";
 
 const LEAD_STAGES = [
   { id: "New", name: "New Lead", color: "border-sky-500 bg-sky-50 dark:bg-sky-950/30 text-sky-700 dark:text-sky-300" },
@@ -14,7 +19,12 @@ const LEAD_STAGES = [
   { id: "Lost", name: "Closed Lost", color: "border-rose-500 bg-rose-50 dark:bg-rose-950/30 text-rose-700 dark:text-rose-300" },
 ];
 
-export function LeadKanbanBoard({ items, isDeals = false, onSelectRecord, onAddRecord, onDeleteRecord }) {
+export function LeadKanbanBoard({ items = [], isDeals = false, onSelectRecord, onAddRecord, onDeleteRecord }) {
+  const updateLeadMutation = useUpdateLeadMutation();
+  const updateDealMutation = useUpdateDealMutation();
+  const deleteLeadMutation = useDeleteLeadMutation();
+  const deleteDealMutation = useDeleteDealMutation();
+
   const handleAdvanceStage = (item, e) => {
     e.stopPropagation();
     const stageOrder = ["New", "Contacted", "Qualified", "Proposal", "Won"];
@@ -22,12 +32,29 @@ export function LeadKanbanBoard({ items, isDeals = false, onSelectRecord, onAddR
     const nextStage = stageOrder[Math.min(stageOrder.length - 1, currentIndex + 1)];
 
     if (isDeals) {
-      saveDeal({ ...item, stage: nextStage });
+      updateDealMutation.mutate({
+        id: item.id,
+        data: {
+          title: item.title,
+          company: item.company,
+          stage: nextStage,
+          value: item.value ? parseFloat(String(item.value).replace(/[^0-9.]/g, "")) || 0 : 0,
+        },
+      });
     } else {
-      saveLead({ ...item, stage: nextStage });
+      updateLeadMutation.mutate({
+        id: item.id,
+        data: {
+          name: item.name,
+          company: item.company,
+          email: item.email || undefined,
+          phone: item.phone || undefined,
+          stage: nextStage,
+          source: item.source || "Inbound Web Inquiry",
+          numericValue: item.numericValue || 0,
+        },
+      });
     }
-
-    toast.success(`Moved ${item.company || item.name} to ${nextStage} stage!`);
   };
 
   const handleDeleteItem = (item, e) => {
@@ -36,11 +63,10 @@ export function LeadKanbanBoard({ items, isDeals = false, onSelectRecord, onAddR
       onDeleteRecord(item);
     } else {
       if (isDeals) {
-        deleteDeal(item.id);
+        deleteDealMutation.mutate(item.id);
       } else {
-        deleteLead(item.id);
+        deleteLeadMutation.mutate(item.id);
       }
-      toast.success(`Deleted ${item.title || item.company || item.name}`);
     }
   };
 

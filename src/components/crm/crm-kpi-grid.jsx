@@ -13,14 +13,16 @@ export function CrmKpiGrid({ customerCount, leadCount, totalPipelineValue, total
       color: "blue",
     },
     {
-      title: "Active Leads & Opportunities",
+      // Opportunities commented out per requirement
+      title: "Active Leads",
       value: leadCount || 0,
       subtext: "In active sales pipeline",
       icon: Target,
       color: "emerald",
     },
     {
-      title: "Pipeline Deal Value",
+      // Deals commented out per requirement
+      title: "Pipeline Value",
       value: `₹${(totalPipelineValue || 0).toLocaleString("en-IN")}`,
       subtext: "Total estimated value",
       icon: DollarSign,

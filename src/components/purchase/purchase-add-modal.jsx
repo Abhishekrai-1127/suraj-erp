@@ -24,16 +24,7 @@ import { saveDocument, saveCustomer, getStoredCustomers } from "@/lib/erp-storag
 import { useCreatePurchaseRecord } from "@/hooks/use-purchase-store";
 
 // Master Vendor list for Autocomplete (Tailored for Procurement & Machinery)
-const MOCK_VENDORS = [
-  { id: "vend-1", name: "Haas Automation India", code: "HA", category: "Machinery & CNC", taxId: "GST-27AAACH1290" },
-  { id: "vend-2", name: "Apex Industrial Solutions", code: "AI", category: "Industrial Equipment", taxId: "GST-07AABCA8891" },
-  { id: "vend-3", name: "Trumpf India Ltd", code: "TI", category: "Laser Processing", taxId: "GST-27AAACT9012" },
-  { id: "vend-4", name: "Yamazaki Mazak Corp", code: "YM", category: "Turning & Lathes", taxId: "GST-27AAACM4490" },
-  { id: "vend-5", name: "Atlas Copco India", code: "AC", category: "Utilities & Compressors", taxId: "GST-27AAACA1120" },
-  { id: "vend-6", name: "NexGen Materials Co.", code: "NM", category: "Raw Steel & Metals", taxId: "GST-07AABCN5540" },
-  { id: "vend-7", name: "Precision Tools India", code: "PT", category: "Cutting Inserts & Spares", taxId: "GST-07AABCP3310" },
-  { id: "vend-8", name: "Global Freight & Logistics", code: "GF", category: "Logistics & Transport", taxId: "GST-07AABCG7720" },
-];
+const MOCK_VENDORS = [];
 
 const DRAFT_STORAGE_PREFIX = "suraj_erp_purchase_draft_";
 
@@ -42,6 +33,7 @@ export default function PurchaseAddModal({ isOpen, onClose, initialTab = "bill" 
   const createRecordMutation = useCreatePurchaseRecord();
 
   useEffect(() => {
+    /* eslint-disable react-hooks/set-state-in-effect */
     if (initialTab) {
       setActiveTab(initialTab);
     }
@@ -63,40 +55,39 @@ export default function PurchaseAddModal({ isOpen, onClose, initialTab = "bill" 
 
   // Line Items State for Purchasing (Raw Materials, Equipment, Components)
   const [items, setItems] = useState([
-    { id: "1", description: "Heavy Duty CNC Milling Cutter Insert (Grade PVD)", hsnSac: "84669390", qty: 20, unitPrice: 1250, unit: "Pcs" },
-    { id: "2", description: "Hot Rolled Carbon Steel Coils 2.5mm (Grade IS 2062)", hsnSac: "72083920", qty: 5, unitPrice: 48500, unit: "MT" },
+    { id: "1", description: "", hsnSac: "", qty: 1, unitPrice: 0, unit: "" },
   ]);
   const [discountPercent, setDiscountPercent] = useState(0);
   const [taxPercent, setTaxPercent] = useState(18);
 
   // Purchase Bill Form Fields
   const [billForm, setBillForm] = useState(() => ({
-    refNo: "PB-2024-" + Math.floor(1000 + Math.random() * 9000),
+    refNo: "PB-" + new Date().getFullYear() + "-" + Math.floor(1000 + Math.random() * 9000),
     billDate: new Date().toISOString().split("T")[0],
     dueDate: new Date(Date.now() + 30 * 86400000).toISOString().split("T")[0],
     paymentTerms: "Net 30 Days",
-    vendorInvoiceNo: "VINV-" + Math.floor(10000 + Math.random() * 90000),
-    notes: "Material received at North Gate Store. QC inspection verified.",
+    vendorInvoiceNo: "",
+    notes: "",
   }));
 
   // RFO (Request For Order) Form Fields
   const [rfoForm, setRfoForm] = useState(() => ({
-    refNo: "RFO-2024-" + Math.floor(1000 + Math.random() * 9000),
+    refNo: "RFO-" + new Date().getFullYear() + "-" + Math.floor(1000 + Math.random() * 9000),
     requestDate: new Date().toISOString().split("T")[0],
     targetDeliveryDate: new Date(Date.now() + 14 * 86400000).toISOString().split("T")[0],
     department: "Toolroom & Precision Machining",
-    priority: "HIGH",
-    justification: "Required for expanding production line #3 capacity.",
+    priority: "MEDIUM",
+    justification: "",
   }));
 
   // Purchased Machinery Form Fields
   const [machineryForm, setMachineryForm] = useState(() => ({
-    assetTag: "MAC-2024-" + Math.floor(100 + Math.random() * 900),
-    name: "CNC 5-Axis Milling Machine",
-    model: "Haas VF-4SS Series High-Speed Vertical Machining Center",
+    assetTag: "MAC-" + new Date().getFullYear() + "-" + Math.floor(100 + Math.random() * 900),
+    name: "",
+    model: "",
     category: "CNC Machining",
     purchaseDate: new Date().toISOString().split("T")[0],
-    cost: "3850000",
+    cost: "",
     warrantyExpiry: new Date(Date.now() + 365 * 2 * 86400000).toISOString().split("T")[0],
     location: "Bay A - Main Workshop",
     status: "OPERATIONAL",
@@ -111,7 +102,7 @@ export default function PurchaseAddModal({ isOpen, onClose, initialTab = "bill" 
     phone: "",
     gstId: "",
     category: "Machinery Supplier",
-    creditLimit: "1000000",
+    creditLimit: "",
     paymentTerms: "Net 30 Days",
     billingAddress: "",
   });
@@ -197,7 +188,7 @@ export default function PurchaseAddModal({ isOpen, onClose, initialTab = "bill" 
   const handleAddItem = () => {
     setItems([
       ...items,
-      { id: Date.now().toString(), description: "Raw Material / Equipment Component", hsnSac: "84581100", qty: 1, unitPrice: 5000, unit: "Nos" },
+      { id: Date.now().toString(), description: "", hsnSac: "", qty: 1, unitPrice: 0, unit: "" },
     ]);
   };
 
@@ -301,9 +292,9 @@ export default function PurchaseAddModal({ isOpen, onClose, initialTab = "bill" 
 
     const formattedItems = items.map((item) => ({
       description: item.description,
-      hsnSac: item.hsnSac || "84581100",
+      hsnSac: item.hsnSac || "",
       qty: parseFloat(item.qty || 1),
-      unit: item.unit || "Pcs",
+      unit: item.unit || "",
       listPrice: parseFloat(item.unitPrice || 0),
       taxPercent: taxPercent || 18,
     }));
@@ -549,7 +540,7 @@ export default function PurchaseAddModal({ isOpen, onClose, initialTab = "bill" 
                       className="px-4 py-2.5 hover:bg-blue-50 dark:hover:bg-blue-950/40 cursor-pointer flex items-center gap-2 text-blue-600 dark:text-blue-400 text-xs font-bold transition border-t border-slate-100 dark:border-slate-800"
                     >
                       <Plus size={14} />
-                      <span>Use manually typed vendor: "{vendorSearch.trim()}"</span>
+                      <span>Use manually typed vendor: &quot;{vendorSearch.trim()}&quot;</span>
                     </div>
                   )}
                 </div>
@@ -1082,7 +1073,7 @@ export default function PurchaseAddModal({ isOpen, onClose, initialTab = "bill" 
                           <td className="p-2">
                             <input
                               type="text"
-                              value={item.unit || "Pcs"}
+                              value={item.unit || ""}
                               onChange={(e) => handleItemChange(item.id, "unit", e.target.value)}
                               placeholder="Pcs/MT/Kg..."
                               className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2 py-1.5 text-xs text-center text-slate-900 dark:text-white"

@@ -47,8 +47,9 @@ export function CrmHeader({
           className="hidden"
         />
 
-        {/* View Mode Switcher (List vs Kanban for Leads/Deals) */}
-        {(activeTab === "Leads" || activeTab.startsWith("Deals")) && onViewModeChange && (
+        {/* View Mode Switcher (List vs Kanban for Leads) */}
+        {/* Deals view mode check commented out per requirement */}
+        {activeTab === "Leads" && onViewModeChange && (
           <div className="flex items-center p-1 bg-slate-100 dark:bg-slate-800 rounded-xl border border-slate-200/80 dark:border-slate-700">
             <button
               onClick={() => onViewModeChange("list")}

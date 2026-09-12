@@ -80,7 +80,7 @@ export default function StatCard({
         <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">
           {title}
         </span>
-        <span className="text-[22px] font-extrabold text-slate-800 dark:text-white tracking-tight block leading-tight">
+        <span suppressHydrationWarning className="text-[22px] font-extrabold text-slate-800 dark:text-white tracking-tight block leading-tight">
           {value}
         </span>
       </div>

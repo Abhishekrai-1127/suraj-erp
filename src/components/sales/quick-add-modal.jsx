@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import {
   X,
   FileText,
@@ -16,22 +16,19 @@ import {
   RotateCcw,
   Clock,
   Sparkles,
+  Building2,
+  User,
 } from "lucide-react";
 import { toast } from "sonner";
 
 import { saveDocument, saveCustomer, getStoredCustomers, hasInvoiceForSalesOrder } from "@/lib/erp-storage";
+import { useCrmCustomers } from "@/hooks/use-crm-store";
+import { getStoredCrmCustomers } from "@/lib/crm-storage";
+import { useDebounce } from "@/hooks/use-debounce";
+import { salesApi, generateLocalSequentialRefNo } from "@/services/sales-api";
 
 // Master Customer list for Autocomplete
-const MOCK_CUSTOMERS = [
-  { id: "cust-1", name: "Apex Corp Solutions", code: "AC", category: "Tech Hardware", taxId: "US-9849201" },
-  { id: "cust-2", name: "Lumina Marketing", code: "LM", category: "Advertising", taxId: "US-3419082" },
-  { id: "cust-3", name: "Global Enterprises", code: "GE", category: "Logistics", taxId: "US-8812903" },
-  { id: "cust-4", name: "Blue Note Café", code: "BN", category: "Retail", taxId: "US-1192834" },
-  { id: "cust-5", name: "Vanguard Dynamics", code: "VD", category: "Manufacturing", taxId: "US-5549012" },
-  { id: "cust-6", name: "Acme Corp Ltd", code: "AC", category: "Manufacturing & Dist.", taxId: "US-7740192" },
-  { id: "cust-7", name: "Starlight Retail", code: "SR", category: "Retail Chain", taxId: "US-6639102" },
-  { id: "cust-8", name: "Nexus Systems", code: "NS", category: "Enterprise IT", taxId: "US-2294018" },
-];
+const MOCK_CUSTOMERS = [];
 
 const DRAFT_STORAGE_PREFIX = "suraj_erp_sales_draft_";
 
@@ -46,44 +43,47 @@ export default function QuickAddModal({ isOpen, onClose }) {
 
   // Sales Document Common Items State
   const [items, setItems] = useState([
-    { id: "1", description: "Enterprise ERP Software License (Annual)", qty: 1, unitPrice: 4500 },
-    { id: "2", description: "Implementation & Training SLA Hours", qty: 10, unitPrice: 150 },
+    { id: "1", description: "", qty: 1, unitPrice: 0 },
   ]);
-  const [discountPercent, setDiscountPercent] = useState(5);
-  const [taxPercent, setTaxPercent] = useState(10);
+  const [discountPercent, setDiscountPercent] = useState(0);
+  const [taxPercent, setTaxPercent] = useState(18);
 
   // Sales Order Form Fields
   const [orderForm, setOrderForm] = useState(() => ({
-    refNo: "SO-2024-" + Math.floor(1000 + Math.random() * 9000),
+    refNo: generateLocalSequentialRefNo("sales_order"),
     orderDate: new Date().toISOString().split("T")[0],
     deliveryDate: new Date(Date.now() + 14 * 86400000).toISOString().split("T")[0],
     paymentTerms: "Net 30 Days",
+    currency: "INR (₹)",
+    status: "PENDING",
     shippingMethod: "Standard Ground Logistics",
-    shippingAddress: "100 Tech Parkway, Suite 400, San Francisco, CA 94107",
-    notes: "Deliver during standard warehouse operating hours (8 AM - 5 PM).",
+    shippingAddress: "",
+    notes: "",
   }));
 
   // Quotation Form Fields
   const [quotationForm, setQuotationForm] = useState(() => ({
-    refNo: "QT-2024-" + Math.floor(1000 + Math.random() * 9000),
+    refNo: generateLocalSequentialRefNo("quotation"),
     quotationDate: new Date().toISOString().split("T")[0],
     expiryDate: new Date(Date.now() + 30 * 86400000).toISOString().split("T")[0],
-    salesperson: "Sarah Jenkins (Key Accounts)",
     priceList: "INR (₹)",
+    status: "PENDING",
     leadSource: "Direct Sales Outreach",
     terms: "Quotation valid for 30 days from issue date. Subject to standard warranty terms.",
   }));
 
   // Invoice Form Fields
   const [invoiceForm, setInvoiceForm] = useState(() => ({
-    refNo: "INV-2024-" + Math.floor(1000 + Math.random() * 9000),
+    refNo: generateLocalSequentialRefNo("invoice"),
     invoiceDate: new Date().toISOString().split("T")[0],
     dueDate: new Date(Date.now() + 30 * 86400000).toISOString().split("T")[0],
-    poNumber: "PO-88912-X",
+    poNumber: "",
+    currency: "INR (₹)",
+    status: "UNPAID",
     invoiceType: "Standard Sales Invoice",
     paymentTerms: "Net 30 Days",
-    bankAccount: "JPMorgan Chase • Acct: *******9041 • SWIFT: CHASUS33",
-    footnote: "Thank you for your business! Please include invoice ref on payment remittals.",
+    bankAccount: "",
+    footnote: "",
   }));
 
   // Customer Form Fields
@@ -145,6 +145,34 @@ export default function QuickAddModal({ isOpen, onClose }) {
     }
   }, [isOpen, activeTab]);
 
+  // Automatically fetch next sequential reference number on modal open or tab change
+  useEffect(() => {
+    if (!isOpen) return;
+    let isCancelled = false;
+
+    async function syncRefNo() {
+      try {
+        const nextRef = await salesApi.getNextRefNo(activeTab);
+        if (isCancelled || !nextRef) return;
+
+        if (activeTab === "quotation") {
+          setQuotationForm((prev) => ({ ...prev, refNo: nextRef }));
+        } else if (activeTab === "order") {
+          setOrderForm((prev) => ({ ...prev, refNo: nextRef }));
+        } else if (activeTab === "invoice") {
+          setInvoiceForm((prev) => ({ ...prev, refNo: nextRef }));
+        }
+      } catch (err) {
+        console.warn("[QuickAddModal] Could not fetch next ref number:", err);
+      }
+    }
+
+    syncRefNo();
+    return () => {
+      isCancelled = true;
+    };
+  }, [isOpen, activeTab]);
+
   // Handle outside click for customer dropdown
   useEffect(() => {
     function handleClickOutside(event) {
@@ -156,16 +184,55 @@ export default function QuickAddModal({ isOpen, onClose }) {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  if (!isOpen) return null;
+  // Fetch live CRM parties (Customers & Vendors)
+  const { data: rawCrmParties = [] } = useCrmCustomers();
+  const debouncedCustomerSearch = useDebounce(customerSearch, 300);
 
-  // Filtered customer list (including newly created customers)
-  const masterCustomerList = [...MOCK_CUSTOMERS, ...getStoredCustomers()];
-  const filteredCustomers = masterCustomerList.filter(
-    (c) =>
-      c.name.toLowerCase().includes(customerSearch.toLowerCase()) ||
-      c.code.toLowerCase().includes(customerSearch.toLowerCase()) ||
-      c.category.toLowerCase().includes(customerSearch.toLowerCase())
-  );
+  // Combined customer & vendor master list
+  const masterCustomerList = useMemo(() => {
+    const crmList = Array.isArray(rawCrmParties) && rawCrmParties.length > 0
+      ? rawCrmParties
+      : getStoredCrmCustomers();
+    const erpList = getStoredCustomers();
+    const map = new Map();
+
+    [...crmList, ...erpList].forEach((item) => {
+      const key = (item.name || item.company || "").toLowerCase().trim();
+      if (key && !map.has(key)) {
+        map.set(key, {
+          id: item.id || key,
+          name: item.name || item.company,
+          company: item.company || item.name,
+          code: item.code || (item.name ? item.name.slice(0, 3).toUpperCase() : "PTY"),
+          type: item.type === "Vendor" ? "Vendor" : "Customer",
+          category: item.category || "General",
+          taxId: item.gst || item.taxId || "",
+          gst: item.gst || item.taxId || "",
+          billingAddress: item.billingAddress || "",
+          shippingAddress: item.shippingAddress || "",
+          email: item.email || "",
+          phone: item.phone || "",
+        });
+      }
+    });
+
+    return Array.from(map.values());
+  }, [rawCrmParties]);
+
+  // Debounced search filter across customers and vendors
+  const filteredCustomers = useMemo(() => {
+    if (!debouncedCustomerSearch.trim()) return masterCustomerList;
+    const q = debouncedCustomerSearch.toLowerCase().trim();
+    return masterCustomerList.filter(
+      (c) =>
+        c.name?.toLowerCase().includes(q) ||
+        c.company?.toLowerCase().includes(q) ||
+        c.code?.toLowerCase().includes(q) ||
+        c.category?.toLowerCase().includes(q) ||
+        c.type?.toLowerCase().includes(q) ||
+        c.gst?.toLowerCase().includes(q)
+    );
+  }, [masterCustomerList, debouncedCustomerSearch]);
 
   // Line Items Calculation
   const subtotal = items.reduce((acc, item) => acc + (Number(item.qty) || 0) * (Number(item.unitPrice) || 0), 0);
@@ -178,7 +245,7 @@ export default function QuickAddModal({ isOpen, onClose }) {
   const handleAddItem = () => {
     setItems([
       ...items,
-      { id: Date.now().toString(), description: "New Item / Service Description", qty: 1, unitPrice: 100 },
+      { id: Date.now().toString(), description: "", qty: 1, unitPrice: 0 },
     ]);
   };
 
@@ -246,7 +313,7 @@ export default function QuickAddModal({ isOpen, onClose }) {
       // Reset to initial blank defaults
       setSelectedCustomer(null);
       setCustomerSearch("");
-      setItems([{ id: "1", description: "Enterprise ERP Software License (Annual)", qty: 1, unitPrice: 4500 }]);
+      setItems([{ id: "1", description: "", qty: 1, unitPrice: 0 }]);
       toast.info(`Cleared saved draft for ${activeTab.toUpperCase()}`);
     } catch (e) {
       console.error(e);
@@ -254,7 +321,8 @@ export default function QuickAddModal({ isOpen, onClose }) {
   };
 
   // Form Submit Handler
-  const handleSubmit = (e) => {
+  /* eslint-disable react-hooks/purity */
+  const handleSubmit = async (e) => {
     e.preventDefault();
 
     if (activeTab !== "customer" && !selectedCustomer) {
@@ -277,171 +345,223 @@ export default function QuickAddModal({ isOpen, onClose }) {
       maximumFractionDigits: 2,
     })}`;
 
-    const dateToday = new Date().toLocaleDateString("en-US", {
+    const dateToday = new Date().toISOString().slice(0, 10);
+    const dateFormatted = new Date().toLocaleDateString("en-US", {
       month: "short",
       day: "2-digit",
       year: "numeric",
     });
 
-    if (activeTab === "order") {
-      const formattedItems = items.map((item) => ({
-        description: item.description,
-        hsnSac: item.hsnSac || "84145930",
-        qty: parseFloat(item.qty || 1),
-        unit: item.unit || "Nos",
-        listPrice: parseFloat(item.unitPrice || item.listPrice || 0),
-        discRupees: parseFloat(item.discount || item.discRupees || 0),
-        taxPercent: taxPercent || 18,
-      }));
-
-      const numPart = orderForm.refNo.replace(/^[A-Z]+-/, "");
-      const invoiceRefNo = "INV-" + numPart;
-      const challanRefNo = "DC-" + numPart;
-
-      // 1. Save Sales Order
-      saveDocument({
-        id: Date.now(),
-        type: "order",
-        refNo: orderForm.refNo,
-        customer: selectedCustomer.name,
-        category: selectedCustomer.category || "General",
-        initials: selectedCustomer.code || "SO",
-        date: dateToday,
-        amount: formattedAmount,
-        numericAmount: grandTotal,
-        status: "IN PROCESS",
-        salesPerson: "Sarah Chen",
-        items: formattedItems,
-      });
-
-      // 2. Auto-create matching Invoice directly
-      saveDocument({
-        id: Date.now() + 1,
-        type: "invoice",
-        refNo: invoiceRefNo,
-        customer: selectedCustomer.name,
-        customerId: selectedCustomer.code || "INV",
-        category: selectedCustomer.category || "General",
-        initials: selectedCustomer.code || "INV",
-        date: dateToday,
-        dueDate: orderForm.targetDeliveryDate || dateToday,
-        amount: formattedAmount,
-        balance: formattedAmount,
-        numericAmount: grandTotal,
-        status: "IN PROGRESS",
-        isOverdue: false,
-        poNumber: orderForm.refNo,
-        items: formattedItems,
-      });
-
-      // 3. Auto-create matching Delivery Challan directly
-      saveDocument({
-        id: Date.now() + 2,
-        type: "challan",
-        refNo: challanRefNo,
-        invoiceRefNo: invoiceRefNo,
-        customer: selectedCustomer.name,
-        customerId: selectedCustomer.code || "DC",
-        date: dateToday,
-        dispatchDate: dateToday,
-        partyOrderNo: orderForm.refNo,
-        amount: formattedAmount,
-        status: "DELIVERED",
-        itemsCount: `${items.length} ${items.length === 1 ? "Unit" : "Units"}`,
-        items: formattedItems,
-        address: selectedCustomer.shippingAddress || selectedCustomer.billingAddress || "Gali No. 6, Master Mohalla, Libaspur, Delhi-42",
-      });
-
-      toast.success(`Sales Order ${orderForm.refNo} created! Invoice ${invoiceRefNo} generated directly.`);
-    } else if (activeTab === "quotation") {
-      saveDocument({
-        id: Date.now(),
-        type: "quotation",
-        refNo: quotationForm.refNo,
-        customer: selectedCustomer.name,
-        category: selectedCustomer.category || "General",
-        initials: selectedCustomer.code || "QT",
-        date: dateToday,
-        validUntil: quotationForm.expiryDate,
-        expiryDate: quotationForm.expiryDate,
-        amount: formattedAmount,
-        numericAmount: grandTotal,
-        status: "Sent",
-        salesPerson: quotationForm.salesperson,
-        // Store line items so PDF can render exact itemized quotation
-        items: items.map((item) => ({
-          description: item.description,
-          hsnSac: item.hsnSac || "84145930",
+    try {
+      if (activeTab === "order") {
+        const formattedItems = items.map((item, idx) => ({
+          description: item.description || `Item ${idx + 1}`,
+          hsnSac: item.hsnSac || "",
           qty: parseFloat(item.qty || 1),
-          unit: item.unit || "Nos",
+          unit: item.unit || "",
           listPrice: parseFloat(item.unitPrice || item.listPrice || 0),
           discRupees: parseFloat(item.discount || item.discRupees || 0),
-          taxPercent: taxPercent || 18,
-        })),
-      });
-    } else if (activeTab === "invoice") {
-      if (invoiceForm.poNumber && hasInvoiceForSalesOrder(invoiceForm.poNumber)) {
-        toast.error(
-          `Invoice for Sales Order ${invoiceForm.poNumber} already exists. Only 1 invoice can be created per Sales Order.`
-        );
-        return;
+          taxPercent: taxPercent !== undefined ? parseFloat(taxPercent) : 18,
+        }));
+
+        const numPart = orderForm.refNo.replace(/^[A-Z]+-/, "");
+        const invoiceRefNo = "INV-" + numPart;
+        const challanRefNo = "DC-" + numPart;
+
+        // 1. Save Sales Order
+        await salesApi.createDocument({
+          id: Date.now(),
+          type: "sales_order",
+          refNo: orderForm.refNo,
+          salesOrderNo: orderForm.refNo,
+          customer: selectedCustomer.name,
+          customerId: selectedCustomer.code || "SO",
+          gstin: selectedCustomer.gst || selectedCustomer.taxId || undefined,
+          placeOfSupply: selectedCustomer.billingAddress || selectedCustomer.shippingAddress || undefined,
+          category: selectedCustomer.category || "General",
+          initials: selectedCustomer.code || "SO",
+          date: dateToday,
+          amount: formattedAmount,
+          numericAmount: grandTotal,
+          subtotal: subtotal,
+          taxTotal: taxAmount,
+          grandTotal: grandTotal,
+          status: orderForm.status || "PENDING",
+          currency: orderForm.currency || "INR (₹)",
+          notes: orderForm.notes,
+          items: formattedItems,
+        });
+
+        // 2. Auto-create matching Invoice directly
+        await salesApi.createDocument({
+          id: Date.now() + 1,
+          type: "invoice",
+          refNo: invoiceRefNo,
+          salesOrderNo: orderForm.refNo,
+          poNumber: orderForm.refNo,
+          customer: selectedCustomer.name,
+          customerId: selectedCustomer.code || "INV",
+          gstin: selectedCustomer.gst || selectedCustomer.taxId || undefined,
+          placeOfSupply: selectedCustomer.billingAddress || selectedCustomer.shippingAddress || undefined,
+          category: selectedCustomer.category || "General",
+          initials: selectedCustomer.code || "INV",
+          date: dateToday,
+          dueDate: orderForm.targetDeliveryDate ? new Date(orderForm.targetDeliveryDate).toISOString().slice(0, 10) : dateToday,
+          validUntil: orderForm.targetDeliveryDate ? new Date(orderForm.targetDeliveryDate).toISOString().slice(0, 10) : dateToday,
+          amount: formattedAmount,
+          balance: formattedAmount,
+          numericAmount: grandTotal,
+          subtotal: subtotal,
+          taxTotal: taxAmount,
+          grandTotal: grandTotal,
+          status: "UNPAID",
+          currency: orderForm.currency || "INR (₹)",
+          isOverdue: false,
+          items: formattedItems,
+        });
+
+        // 3. Auto-create matching Delivery Challan directly
+        await salesApi.createDocument({
+          id: Date.now() + 2,
+          type: "delivery_challan",
+          refNo: challanRefNo,
+          salesOrderNo: orderForm.refNo,
+          poNumber: orderForm.refNo,
+          invoiceRefNo: invoiceRefNo,
+          customer: selectedCustomer.name,
+          customerId: selectedCustomer.code || "DC",
+          gstin: selectedCustomer.gst || selectedCustomer.taxId || undefined,
+          placeOfSupply: selectedCustomer.shippingAddress || selectedCustomer.billingAddress || undefined,
+          date: dateToday,
+          dispatchDate: dateToday,
+          partyOrderNo: orderForm.refNo,
+          amount: formattedAmount,
+          currency: orderForm.currency || "INR (₹)",
+          status: "DELIVERED",
+          itemsCount: `${items.length} ${items.length === 1 ? "Item" : "Items"}`,
+          items: formattedItems,
+          address: selectedCustomer.shippingAddress || selectedCustomer.billingAddress || "",
+        });
+
+        toast.success(`Sales Order ${orderForm.refNo} created! Invoice ${invoiceRefNo} generated directly.`);
+      } else if (activeTab === "quotation") {
+        const formattedItems = items.map((item, idx) => ({
+          description: item.description || `Item ${idx + 1}`,
+          hsnSac: item.hsnSac || "",
+          qty: parseFloat(item.qty || 1),
+          unit: item.unit || "",
+          listPrice: parseFloat(item.unitPrice || item.listPrice || 0),
+          discRupees: parseFloat(item.discount || item.discRupees || 0),
+          taxPercent: taxPercent !== undefined ? parseFloat(taxPercent) : 18,
+        }));
+
+        await salesApi.createDocument({
+          id: Date.now(),
+          type: "quotation",
+          refNo: quotationForm.refNo,
+          customer: selectedCustomer.name,
+          customerId: selectedCustomer.code || "QT",
+          gstin: selectedCustomer.gst || selectedCustomer.taxId || undefined,
+          placeOfSupply: selectedCustomer.billingAddress || selectedCustomer.shippingAddress || undefined,
+          category: selectedCustomer.category || "General",
+          initials: selectedCustomer.code || "QT",
+          date: dateToday,
+          validUntil: quotationForm.expiryDate ? new Date(quotationForm.expiryDate).toISOString().slice(0, 10) : undefined,
+          expiryDate: quotationForm.expiryDate,
+          amount: formattedAmount,
+          numericAmount: grandTotal,
+          subtotal: subtotal,
+          taxTotal: taxAmount,
+          grandTotal: grandTotal,
+          status: quotationForm.status || "PENDING",
+          currency: quotationForm.priceList || "INR (₹)",
+          priceList: quotationForm.priceList || "INR (₹)",
+          notes: quotationForm.terms,
+          items: formattedItems,
+        });
+
+        toast.success(`Quotation ${quotationForm.refNo} created successfully!`);
+      } else if (activeTab === "invoice") {
+        if (invoiceForm.poNumber && hasInvoiceForSalesOrder(invoiceForm.poNumber)) {
+          toast.error(
+            `Invoice for Sales Order ${invoiceForm.poNumber} already exists. Only 1 invoice can be created per Sales Order.`
+          );
+          return;
+        }
+        const challanRefNo = "DC-" + invoiceForm.refNo.replace(/^[A-Z]+-/, "");
+        const formattedItems = items.map((item, idx) => ({
+          description: item.description || `Item ${idx + 1}`,
+          hsnSac: item.hsnSac || "",
+          qty: parseFloat(item.qty || 1),
+          unit: item.unit || "",
+          listPrice: parseFloat(item.unitPrice || item.listPrice || 0),
+          discRupees: parseFloat(item.discount || item.discRupees || 0),
+          taxPercent: taxPercent !== undefined ? parseFloat(taxPercent) : 18,
+        }));
+
+        // Save Invoice
+        await salesApi.createDocument({
+          id: Date.now(),
+          type: "invoice",
+          refNo: invoiceForm.refNo,
+          salesOrderNo: invoiceForm.poNumber,
+          poNumber: invoiceForm.poNumber,
+          customer: selectedCustomer.name,
+          customerId: selectedCustomer.code || "INV",
+          gstin: selectedCustomer.gst || selectedCustomer.taxId || undefined,
+          placeOfSupply: selectedCustomer.billingAddress || selectedCustomer.shippingAddress || undefined,
+          category: selectedCustomer.category || "General",
+          initials: selectedCustomer.code || "INV",
+          date: dateToday,
+          dueDate: invoiceForm.dueDate ? new Date(invoiceForm.dueDate).toISOString().slice(0, 10) : dateToday,
+          validUntil: invoiceForm.dueDate ? new Date(invoiceForm.dueDate).toISOString().slice(0, 10) : dateToday,
+          amount: formattedAmount,
+          balance: formattedAmount,
+          numericAmount: grandTotal,
+          subtotal: subtotal,
+          taxTotal: taxAmount,
+          grandTotal: grandTotal,
+          status: invoiceForm.status || "UNPAID",
+          currency: invoiceForm.currency || "INR (₹)",
+          isOverdue: false,
+          items: formattedItems,
+        });
+
+        // Auto-create matching Delivery Challan directly
+        await salesApi.createDocument({
+          id: Date.now() + 1,
+          type: "delivery_challan",
+          refNo: challanRefNo,
+          salesOrderNo: invoiceForm.poNumber,
+          poNumber: invoiceForm.poNumber,
+          invoiceRefNo: invoiceForm.refNo,
+          customer: selectedCustomer.name,
+          customerId: selectedCustomer.code || "DC",
+          gstin: selectedCustomer.gst || selectedCustomer.taxId || undefined,
+          placeOfSupply: selectedCustomer.shippingAddress || selectedCustomer.billingAddress || undefined,
+          date: dateToday,
+          dispatchDate: dateToday,
+          partyOrderNo: invoiceForm.poNumber || "",
+          amount: formattedAmount,
+          currency: invoiceForm.currency || "INR (₹)",
+          status: "DELIVERED",
+          itemsCount: `${items.length} ${items.length === 1 ? "Item" : "Items"}`,
+          items: formattedItems,
+          address: selectedCustomer.shippingAddress || selectedCustomer.billingAddress || "",
+        });
+      } else if (activeTab === "customer") {
+        saveCustomer({
+          id: "cust-" + Date.now(),
+          name: customerForm.companyName || "New Customer",
+          code: customerForm.code || (customerForm.companyName ? customerForm.companyName.slice(0, 2).toUpperCase() : "NC"),
+          category: customerForm.category || "Enterprise",
+          taxId: customerForm.taxId || "US-TAX",
+        });
       }
-      const challanRefNo = "DC-" + invoiceForm.refNo.replace(/^[A-Z]+-/, "");
-      const formattedItems = items.map((item) => ({
-        description: item.description,
-        hsnSac: item.hsnSac || "84145930",
-        qty: parseFloat(item.qty || 1),
-        unit: item.unit || "Nos",
-        listPrice: parseFloat(item.unitPrice || item.listPrice || 0),
-        discRupees: parseFloat(item.discount || item.discRupees || 0),
-        taxPercent: taxPercent || 18,
-      }));
-
-      // Save Invoice
-      saveDocument({
-        id: Date.now(),
-        type: "invoice",
-        refNo: invoiceForm.refNo,
-        customer: selectedCustomer.name,
-        customerId: selectedCustomer.code || "INV",
-        category: selectedCustomer.category || "General",
-        initials: selectedCustomer.code || "INV",
-        date: dateToday,
-        dueDate: invoiceForm.dueDate,
-        amount: formattedAmount,
-        balance: formattedAmount,
-        numericAmount: grandTotal,
-        status: "IN PROGRESS",
-        isOverdue: false,
-        poNumber: invoiceForm.poNumber,
-        items: formattedItems,
-      });
-
-      // Auto-create matching Delivery Challan directly
-      saveDocument({
-        id: Date.now() + 1,
-        type: "challan",
-        refNo: challanRefNo,
-        invoiceRefNo: invoiceForm.refNo,
-        customer: selectedCustomer.name,
-        customerId: selectedCustomer.code || "DC",
-        date: dateToday,
-        dispatchDate: dateToday,
-        partyOrderNo: invoiceForm.poNumber || "PO-88912-X",
-        amount: formattedAmount,
-        status: "DELIVERED",
-        itemsCount: `${items.length} ${items.length === 1 ? "Unit" : "Units"}`,
-        items: formattedItems,
-        address: selectedCustomer.shippingAddress || selectedCustomer.billingAddress || "Gali No. 6, Master Mohalla, Libaspur, Delhi-42",
-      });
-    } else if (activeTab === "customer") {
-      saveCustomer({
-        id: "cust-" + Date.now(),
-        name: customerForm.companyName || "New Customer",
-        code: customerForm.code || (customerForm.companyName ? customerForm.companyName.slice(0, 2).toUpperCase() : "NC"),
-        category: customerForm.category || "Enterprise",
-        taxId: customerForm.taxId || "US-TAX",
-      });
+    } catch (err) {
+      console.error("Error creating document:", err);
+      toast.error(err?.message || "Failed to create sales document.");
+      return;
     }
 
     const typeTitles = {
@@ -477,9 +597,28 @@ export default function QuickAddModal({ isOpen, onClose }) {
 
   const currentTabObj = tabs.find((t) => t.id === activeTab) || tabs[0];
 
+  // Close on Escape key press
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === "Escape" && isOpen && onClose) {
+        onClose();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isOpen, onClose]);
+
+  if (!isOpen) return null;
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-3 sm:p-6 animate-in fade-in duration-200 overflow-y-auto">
-      <div className="relative w-full max-w-4xl my-auto rounded-2xl bg-white dark:bg-slate-900 p-4 sm:p-7 shadow-2xl border border-slate-100 dark:border-slate-800 max-h-[92vh] flex flex-col justify-between overflow-hidden">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-3 sm:p-6 animate-in fade-in duration-200 overflow-y-auto"
+      onClick={onClose}
+    >
+      <div
+        className="relative w-full max-w-4xl my-auto rounded-2xl bg-white dark:bg-slate-900 p-4 sm:p-7 shadow-2xl border border-slate-100 dark:border-slate-800 max-h-[92vh] flex flex-col justify-between overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
         
         {/* Modal Header */}
         <div className="flex items-center justify-between pb-3 sm:pb-4 border-b border-slate-100 dark:border-slate-800 shrink-0">
@@ -556,12 +695,12 @@ export default function QuickAddModal({ isOpen, onClose }) {
           {activeTab !== "customer" && (
             <div className="space-y-1.5 relative" ref={dropdownRef}>
               <label className="block text-xs font-extrabold text-slate-900 dark:text-slate-100 uppercase tracking-wider">
-                Select Customer Account <span className="text-rose-500">*</span>
+                Select Account (Customer / Vendor) <span className="text-rose-500">*</span>
               </label>
               <div className="relative">
                 <input
                   type="text"
-                  placeholder="Search customer by name, code, or category..."
+                  placeholder="Search customer or vendor by name, company, code, GST..."
                   value={selectedCustomer ? selectedCustomer.name : customerSearch}
                   onFocus={() => setIsCustomerDropdownOpen(true)}
                   onChange={(e) => {
@@ -587,23 +726,41 @@ export default function QuickAddModal({ isOpen, onClose }) {
                           setCustomerSearch(cust.name);
                           setIsCustomerDropdownOpen(false);
                         }}
-                        className="px-4 py-2.5 hover:bg-blue-50 dark:hover:bg-blue-950/40 cursor-pointer flex items-center justify-between transition"
+                        className="px-4 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-800/60 cursor-pointer flex items-center justify-between transition gap-2"
                       >
-                        <div className="flex items-center gap-3">
-                          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 text-xs font-black">
-                            {cust.code}
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div
+                            className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-xs font-black ${
+                              cust.type === "Vendor"
+                                ? "bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300"
+                                : "bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300"
+                            }`}
+                          >
+                            {cust.type === "Vendor" ? <Building2 size={15} /> : <User size={15} />}
                           </div>
-                          <div>
-                            <div className="text-xs font-bold text-slate-900 dark:text-white">{cust.name}</div>
-                            <div className="text-[11px] font-medium text-slate-400">{cust.category}</div>
+                          <div className="min-w-0">
+                            <div className="text-xs font-bold text-slate-900 dark:text-white truncate">{cust.name}</div>
+                            <div className="text-[11px] font-medium text-slate-400 truncate">
+                              {cust.company && cust.company !== cust.name ? `${cust.company} • ` : ""}
+                              {cust.category || "General"}
+                              {cust.taxId ? ` • GST: ${cust.taxId}` : ""}
+                            </div>
                           </div>
                         </div>
-                        <span className="text-[10px] font-mono text-slate-400">{cust.taxId}</span>
+                        <span
+                          className={`shrink-0 px-1.5 py-0.5 rounded text-[10px] font-extrabold uppercase tracking-wide border ${
+                            cust.type === "Vendor"
+                              ? "bg-purple-50 text-purple-700 dark:bg-purple-950/50 dark:text-purple-300 border-purple-200 dark:border-purple-800"
+                              : "bg-blue-50 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300 border-blue-200 dark:border-blue-800"
+                          }`}
+                        >
+                          {cust.type || "Customer"}
+                        </span>
                       </div>
                     ))
                   ) : (
                     <div className="px-4 py-3 text-xs text-slate-400 text-center font-medium">
-                      No matching customer accounts found
+                      No matching customer or vendor accounts found
                     </div>
                   )}
                 </div>
@@ -626,6 +783,23 @@ export default function QuickAddModal({ isOpen, onClose }) {
                     onChange={(e) => setOrderForm({ ...orderForm, refNo: e.target.value })}
                     className="w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-800/50 px-3.5 py-2 text-xs font-bold text-slate-900 dark:text-white"
                   />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    Order Status
+                  </label>
+                  <select
+                    value={orderForm.status || "PENDING"}
+                    onChange={(e) => setOrderForm({ ...orderForm, status: e.target.value })}
+                    className="w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-800/50 px-3.5 py-2 text-xs font-bold text-slate-900 dark:text-white"
+                  >
+                    <option value="PENDING">PENDING</option>
+                    <option value="APPROVED">APPROVED</option>
+                    <option value="DELIVERED">DELIVERED</option>
+                    <option value="DRAFT">DRAFT</option>
+                    <option value="CANCELLED">CANCELLED</option>
+                  </select>
                 </div>
 
                 <div>
@@ -718,6 +892,22 @@ export default function QuickAddModal({ isOpen, onClose }) {
 
                 <div>
                   <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    Quotation Status
+                  </label>
+                  <select
+                    value={quotationForm.status || "PENDING"}
+                    onChange={(e) => setQuotationForm({ ...quotationForm, status: e.target.value })}
+                    className="w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-800/50 px-3.5 py-2 text-xs font-bold text-slate-900 dark:text-white"
+                  >
+                    <option value="PENDING">PENDING</option>
+                    <option value="APPROVED">APPROVED</option>
+                    <option value="DRAFT">DRAFT</option>
+                    <option value="CANCELLED">CANCELLED</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
                     Quotation Issue Date
                   </label>
                   <input
@@ -742,38 +932,7 @@ export default function QuickAddModal({ isOpen, onClose }) {
                   />
                 </div>
 
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                    Assigned Sales Executive
-                  </label>
-                  <select
-                    value={quotationForm.salesperson}
-                    onChange={(e) => setQuotationForm({ ...quotationForm, salesperson: e.target.value })}
-                    className="w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-800/50 px-3.5 py-2 text-xs font-bold text-slate-900 dark:text-white"
-                  >
-                    <option value="Sarah Jenkins (Key Accounts)">Sarah Jenkins (Key Accounts)</option>
-                    <option value="Michael Chen (Mid-Market)">Michael Chen (Mid-Market)</option>
-                    <option value="Alex Rivera (SMB Sales)">Alex Rivera (SMB Sales)</option>
-                    <option value="David Kim (Key Accounts)">David Kim (Key Accounts)</option>
-                  </select>
-                </div>
-              </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                    Price List / Currency
-                  </label>
-                  <select
-                    value={quotationForm.priceList}
-                    onChange={(e) => setQuotationForm({ ...quotationForm, priceList: e.target.value })}
-                    className="w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-800/50 px-3.5 py-2 text-xs font-bold text-slate-900 dark:text-white"
-                  >
-                    <option value="USD ($)">USD - US Dollar ($)</option>
-                    <option value="EUR (€)">EUR - Euro (€)</option>
-                    <option value="GBP (£)">GBP - British Pound (£)</option>
-                  </select>
-                </div>
                 <div>
                   <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
                     Lead Source
@@ -782,6 +941,18 @@ export default function QuickAddModal({ isOpen, onClose }) {
                     type="text"
                     value={quotationForm.leadSource}
                     onChange={(e) => setQuotationForm({ ...quotationForm, leadSource: e.target.value })}
+                    className="w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-800/50 px-3.5 py-2 text-xs font-bold text-slate-900 dark:text-white"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    Quotation Terms / Remarks
+                  </label>
+                  <input
+                    type="text"
+                    value={quotationForm.terms}
+                    onChange={(e) => setQuotationForm({ ...quotationForm, terms: e.target.value })}
                     className="w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-800/50 px-3.5 py-2 text-xs font-bold text-slate-900 dark:text-white"
                   />
                 </div>
@@ -804,6 +975,22 @@ export default function QuickAddModal({ isOpen, onClose }) {
                     onChange={(e) => setInvoiceForm({ ...invoiceForm, refNo: e.target.value })}
                     className="w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-800/50 px-3.5 py-2 text-xs font-bold text-slate-900 dark:text-white"
                   />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    Invoice Status
+                  </label>
+                  <select
+                    value={invoiceForm.status || "UNPAID"}
+                    onChange={(e) => setInvoiceForm({ ...invoiceForm, status: e.target.value })}
+                    className="w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-800/50 px-3.5 py-2 text-xs font-bold text-slate-900 dark:text-white"
+                  >
+                    <option value="UNPAID">UNPAID</option>
+                    <option value="PAID">PAID</option>
+                    <option value="DRAFT">DRAFT</option>
+                    <option value="CANCELLED">CANCELLED</option>
+                  </select>
                 </div>
 
                 <div>

@@ -32,8 +32,8 @@ const DEFAULT_TERMS = [
  * Map a stored ERP quotation row → TallyQuotationPreview data shape
  */
 function mapErpQuotationToTally(erpQuotation) {
-  const refNo = erpQuotation.id || erpQuotation.refNo || "QT-2024-001";
-  const customerName = erpQuotation.customer || "Customer";
+  const refNo = erpQuotation.id || erpQuotation.refNo || "QT-001";
+  const customerName = erpQuotation.customer || "";
   const rawAmount =
     typeof erpQuotation.numericAmount === "number"
       ? erpQuotation.numericAmount
@@ -45,7 +45,7 @@ function mapErpQuotationToTally(erpQuotation) {
       number: refNo,
       date: erpQuotation.date || new Date().toISOString().split("T")[0],
       validUntil: erpQuotation.validUntil || erpQuotation.expiryDate || "",
-      salesperson: erpQuotation.salesPerson || "Sarah Chen",
+      salesperson: erpQuotation.salesPerson || "",
       placeOfSupply: "07 - Delhi",
     },
     billing: {
@@ -58,25 +58,15 @@ function mapErpQuotationToTally(erpQuotation) {
     items:
       erpQuotation.items && erpQuotation.items.length > 0
         ? erpQuotation.items.map((item) => ({
-            description: item.description || "Item",
-            hsnSac: item.hsnSac || "84145930",
+            description: item.description || item.name || "",
+            hsnSac: item.hsnSac || "",
             qty: parseFloat(item.qty || item.quantity || 1),
-            unit: item.unit || "Nos",
+            unit: item.unit || "",
             listPrice: parseFloat(item.listPrice || item.unitPrice || item.rate || 0),
             discRupees: parseFloat(item.discRupees || item.discount || 0),
             taxPercent: parseFloat(item.taxPercent || item.tax || 18),
           }))
-        : [
-            {
-              description: erpQuotation.description || "Industrial Machinery Equipment & Components",
-              hsnSac: "84145930",
-              qty: 1,
-              unit: "Nos",
-              listPrice: rawAmount / 1.18,
-              discRupees: 0,
-              taxPercent: 18,
-            },
-          ],
+        : [],
     flatDiscount: 0,
     bank: DEFAULT_BANK,
     terms: DEFAULT_TERMS,

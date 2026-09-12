@@ -18,44 +18,87 @@ import { toast } from "sonner";
 export default function LoginPage() {
   const router = useRouter();
 
-  const [email, setEmail] = useState("surajenterprises@gmail.com");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = (e) => {
+  const clearStoredSession = () => {
+    localStorage.removeItem("access_token");
+    localStorage.removeItem("refresh_token");
+    localStorage.removeItem("suraj_erp_access_token");
+    localStorage.removeItem("suraj_erp_user");
+  };
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!email || !password) {
       toast.error("Please enter email address and password");
       return;
     }
 
-    if (password !== "Erp@123") {
-      toast.error("Incorrect password. Please try again.");
-      return;
-    }
-
     setIsLoading(true);
     const toastId = toast.loading("Authenticating session...");
 
-    setTimeout(() => {
-      setIsLoading(false);
-      try {
-        const userObj = {
-          name: "Suraj Enterprises",
-          email: email,
-          role: "Administrator",
-          isLoggedIn: true,
-          loginTime: new Date().toISOString(),
-        };
-        localStorage.setItem("suraj_erp_user", JSON.stringify(userObj));
-      } catch (err) {
-        console.error("Failed to store user session:", err);
+    try {
+      // Never retain a prior malformed token when the next authentication attempt
+      // fails or returns a new session.
+      clearStoredSession();
+
+      // Call the staging backend login endpoint via the Next.js server-side proxy
+      const response = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        // Surface the backend's actual error message (e.g. "Invalid credentials")
+        const errorMsg = result?.message || result?.error || "Login failed. Please check your credentials.";
+        toast.error(errorMsg, { id: toastId });
+        setIsLoading(false);
+        return;
       }
 
-      toast.success("Welcome back, Suraj Enterprises!", { id: toastId });
+      // Backend returns { accessToken, refreshToken, user } or { data: { accessToken, ... } }
+      const data = result?.data || result;
+      const accessToken = data?.accessToken;
+      const refreshToken = data?.refreshToken;
+      const user = data?.user;
+
+      if (!accessToken || typeof accessToken !== "string" || accessToken.split(".").length !== 3) {
+        clearStoredSession();
+        toast.error("Authentication failed: no token received.", { id: toastId });
+        setIsLoading(false);
+        return;
+      }
+
+      // Persist tokens — apiClient interceptor picks up access_token automatically on all future requests
+      localStorage.setItem("access_token", accessToken);
+      if (refreshToken) localStorage.setItem("refresh_token", refreshToken);
+
+      // Persist user profile for sidebar display
+      if (user) {
+        localStorage.setItem("suraj_erp_user", JSON.stringify({
+          name: user.name || "Suraj Enterprises",
+          email: user.email || email,
+          role: user.role || "Administrator",
+          isLoggedIn: true,
+          loginTime: new Date().toISOString(),
+        }));
+      }
+
+      toast.success(`Welcome back, ${user?.name || "Suraj Enterprises"}!`, { id: toastId });
       router.push("/dashboard");
-    }, 600);
+
+    } catch (err) {
+      // Network or unexpected error
+      clearStoredSession();
+      toast.error("Unable to reach authentication server. Please try again.", { id: toastId });
+      setIsLoading(false);
+    }
   };
 
   return (

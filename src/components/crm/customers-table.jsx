@@ -19,13 +19,13 @@ import {
 import { toast } from "sonner";
 import { CrmFilterPopover } from "./crm-filter-popover";
 import {
-  getStoredCrmCustomers,
-  getStoredLeads,
-  getStoredDeals,
-  deleteCrmCustomer,
-  deleteLead,
-  deleteDeal,
-} from "@/lib/crm-storage";
+  useCrmCustomers,
+  useCrmLeads,
+  useCrmDeals,
+  useDeleteCustomerMutation,
+  useDeleteLeadMutation,
+  useDeleteDealMutation,
+} from "@/hooks/use-crm-store";
 
 export function CustomersTable({
   activeTab = "Customers & Vendors",
@@ -34,7 +34,8 @@ export function CustomersTable({
   onEditRecord,
   onConvertLead,
 }) {
-  const tabs = ["Customers & Vendors", "Leads", "Deals / Opportunities"];
+  // Deals & Opportunities tab commented out per requirement
+  const tabs = ["Customers & Vendors", "Leads"/*, "Deals / Opportunities"*/];
 
   const [currentTab, setCurrentTab] = useState(activeTab);
   const [searchQuery, setSearchQuery] = useState("");
@@ -43,7 +44,6 @@ export function CustomersTable({
   const [typeFilter, setTypeFilter] = useState("All"); // All, Customer, Vendor
   const [statusFilter, setStatusFilter] = useState("All");
   const [categoryFilter, setCategoryFilter] = useState("All");
-  const [repFilter, setRepFilter] = useState("All");
   const [sourceFilter, setSourceFilter] = useState("All");
   const [valueRangeFilter, setValueRangeFilter] = useState("All");
 
@@ -51,34 +51,28 @@ export function CustomersTable({
   const [selectedIds, setSelectedIds] = useState([]);
   const [activeRowMenuId, setActiveRowMenuId] = useState(null);
 
-  // Live Records State
-  const [records, setRecords] = useState([]);
+  // TanStack Query Hooks & Mutations
+  const { data: rawCustomers = [] } = useCrmCustomers();
+  const { data: rawLeads = [] } = useCrmLeads();
+  const { data: rawDeals = [] } = useCrmDeals();
+
+  const deleteCustomerMutation = useDeleteCustomerMutation();
+  const deleteLeadMutation = useDeleteLeadMutation();
+  const deleteDealMutation = useDeleteDealMutation();
 
   useEffect(() => {
+    /* eslint-disable react-hooks/set-state-in-effect */
     setCurrentTab(activeTab);
   }, [activeTab]);
 
-  const loadData = () => {
-    let data = [];
-    if (currentTab === "Customers & Vendors" || currentTab === "Customers" || currentTab === "Vendors") {
-      data = getStoredCrmCustomers();
-    } else if (currentTab === "Leads") {
-      data = getStoredLeads();
-    } else if (currentTab.startsWith("Deals")) {
-      data = getStoredDeals();
-    }
-    setRecords(data);
-  };
-
-  useEffect(() => {
-    loadData();
-    window.addEventListener("suraj_crm_updated", loadData);
-    window.addEventListener("storage", loadData);
-    return () => {
-      window.removeEventListener("suraj_crm_updated", loadData);
-      window.removeEventListener("storage", loadData);
-    };
-  }, [currentTab]);
+  let records = [];
+  if (currentTab === "Customers & Vendors" || currentTab === "Customers" || currentTab === "Vendors") {
+    records = Array.isArray(rawCustomers) ? rawCustomers : [];
+  } else if (currentTab === "Leads") {
+    records = Array.isArray(rawLeads) ? rawLeads : [];
+  } else if (currentTab.startsWith("Deals")) {
+    records = Array.isArray(rawDeals) ? rawDeals : [];
+  }
 
   useEffect(() => {
     const handleClickOutside = () => setActiveRowMenuId(null);
@@ -98,7 +92,6 @@ export function CustomersTable({
     setTypeFilter("All");
     setStatusFilter("All");
     setCategoryFilter("All");
-    setRepFilter("All");
     setSourceFilter("All");
     setValueRangeFilter("All");
   };
@@ -107,7 +100,6 @@ export function CustomersTable({
     typeFilter !== "All" ? 1 : 0,
     statusFilter !== "All" ? 1 : 0,
     categoryFilter !== "All" ? 1 : 0,
-    repFilter !== "All" ? 1 : 0,
     sourceFilter !== "All" ? 1 : 0,
     valueRangeFilter !== "All" ? 1 : 0,
   ].reduce((a, b) => a + b, 0);
@@ -125,7 +117,6 @@ export function CustomersTable({
     }
 
     if (categoryFilter !== "All" && item.category !== categoryFilter) return false;
-    if (repFilter !== "All" && item.assignedRep !== repFilter) return false;
     if (sourceFilter !== "All" && item.source !== sourceFilter) return false;
 
     if (valueRangeFilter !== "All") {
@@ -175,27 +166,25 @@ export function CustomersTable({
   const handleDeleteRecord = (record, e) => {
     e.stopPropagation();
     if (currentTab === "Leads") {
-      deleteLead(record.id);
+      deleteLeadMutation.mutate(record.id);
     } else if (currentTab.startsWith("Deals")) {
-      deleteDeal(record.id);
+      deleteDealMutation.mutate(record.id);
     } else {
-      deleteCrmCustomer(record.id);
+      deleteCustomerMutation.mutate(record.id);
     }
-    toast.success(`Deleted ${record.company || record.name || record.title}`);
   };
 
   const handleBulkDelete = () => {
     if (selectedIds.length === 0) return;
     selectedIds.forEach((id) => {
       if (currentTab === "Leads") {
-        deleteLead(id);
+        deleteLeadMutation.mutate(id);
       } else if (currentTab.startsWith("Deals")) {
-        deleteDeal(id);
+        deleteDealMutation.mutate(id);
       } else {
-        deleteCrmCustomer(id);
+        deleteCustomerMutation.mutate(id);
       }
     });
-    toast.success(`Deleted ${selectedIds.length} selected records!`);
     setSelectedIds([]);
   };
 
@@ -204,7 +193,7 @@ export function CustomersTable({
   const isPartiesTab = !isDealsTab && !isLeadsTab;
 
   return (
-    <div className="flex flex-col w-full h-full">
+    <div className="flex flex-col w-full h-full flex-1 justify-between min-h-[580px]">
       {/* 3 Primary Section Tabs */}
       <div className="flex items-center px-6 pt-4 border-b border-slate-200 dark:border-slate-800 gap-8 overflow-x-auto custom-scrollbar">
         {tabs.map((tab) => {
@@ -275,8 +264,6 @@ export function CustomersTable({
               onStatusFilterChange={setStatusFilter}
               categoryFilter={categoryFilter}
               onCategoryFilterChange={setCategoryFilter}
-              repFilter={repFilter}
-              onRepFilterChange={setRepFilter}
               sourceFilter={sourceFilter}
               onSourceFilterChange={setSourceFilter}
               valueRangeFilter={valueRangeFilter}
@@ -312,8 +299,8 @@ export function CustomersTable({
         </div>
       </div>
 
-      {/* Main Full-Width Data Table */}
-      <div className="w-full overflow-x-auto">
+      {/* Main Full-Width Data Table with Extended Clearance & Smooth Scroll */}
+      <div className="w-full flex-1 overflow-x-auto min-h-[380px] pb-28 custom-scrollbar">
         <table className="w-full min-w-[850px] text-left border-collapse">
           <thead>
             <tr className="bg-slate-50 dark:bg-[#1b1d26] border-b border-slate-200 dark:border-slate-800/80">
@@ -347,7 +334,7 @@ export function CustomersTable({
           </thead>
           <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 text-xs font-semibold">
             {filteredRecords.length > 0 ? (
-              filteredRecords.map((row) => (
+              filteredRecords.map((row, index) => (
                 <tr
                   key={row.id}
                   onClick={() => onSelectRecord && onSelectRecord(row)}
@@ -421,7 +408,13 @@ export function CustomersTable({
                       </button>
 
                       {activeRowMenuId === row.id && (
-                        <div className="absolute right-0 mt-1 w-44 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xl z-30 py-1.5 font-semibold text-xs animate-in fade-in zoom-in-95 duration-100">
+                        <div
+                          className={`absolute right-0 ${
+                            filteredRecords.length > 2 && index >= filteredRecords.length - 2
+                              ? "bottom-full mb-1.5"
+                              : "top-full mt-1.5"
+                          } w-44 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl z-50 py-1.5 font-semibold text-xs animate-in fade-in zoom-in-95 duration-100`}
+                        >
                           <button
                             onClick={() => {
                               setActiveRowMenuId(null);
@@ -485,7 +478,7 @@ export function CustomersTable({
       </div>
 
       {/* Pagination Footer */}
-      <div className="flex items-center justify-between px-6 py-4 border-t border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/20">
+      <div className="flex items-center justify-between px-6 py-4 border-t border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/20 mt-auto shrink-0">
         <span className="text-xs font-semibold text-slate-500">
           Showing <strong className="font-bold text-slate-900 dark:text-white">{filteredRecords.length}</strong> records in {currentTab}
         </span>

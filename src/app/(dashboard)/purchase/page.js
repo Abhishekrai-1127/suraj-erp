@@ -20,68 +20,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
-const purchaseOverviewData = [
-  {
-    id: "PB-2023-8941",
-    vendor: "Apex Industrial Solutions",
-    initials: "AI",
-    billDate: "Oct 24, 2023",
-    dueDate: "Nov 02, 2023",
-    amount: "₹1,45,200.00",
-    paymentStatus: "PAID",
-    type: "Purchase Bill",
-  },
-  {
-    id: "RFO-2023-9002",
-    vendor: "Bharat Logistics Corp",
-    initials: "BL",
-    billDate: "Oct 26, 2023",
-    dueDate: "Nov 05, 2023",
-    amount: "₹82,400.50",
-    paymentStatus: "PARTIAL",
-    type: "RFO Pending",
-  },
-  {
-    id: "PB-2023-9015",
-    vendor: "Global Tech Components",
-    initials: "GT",
-    billDate: "Oct 27, 2023",
-    dueDate: "Oct 30, 2023",
-    amount: "₹3,12,000.00",
-    paymentStatus: "UNPAID",
-    type: "Purchase Bill",
-  },
-  {
-    id: "PB-2023-8820",
-    vendor: "Z-Industries Ltd",
-    initials: "ZI",
-    billDate: "Oct 20, 2023",
-    dueDate: "Oct 28, 2023",
-    amount: "₹54,000.00",
-    paymentStatus: "PAID",
-    type: "Purchase Bill",
-  },
-  {
-    id: "MAC-2023-881",
-    vendor: "Haas Automation India",
-    initials: "HA",
-    billDate: "Jan 14, 2023",
-    dueDate: "Jan 14, 2023",
-    amount: "₹38,50,000.00",
-    paymentStatus: "PAID",
-    type: "Purchased Machinery",
-  },
-  {
-    id: "RFO-2023-8711",
-    vendor: "Precision Pipes Co.",
-    initials: "PP",
-    billDate: "Oct 15, 2023",
-    dueDate: "Oct 22, 2023",
-    amount: "₹2,18,500.00",
-    paymentStatus: "PAID",
-    type: "RFO Approved",
-  },
-];
+
 
 import { usePurchaseRecords } from "@/hooks/use-purchase-store";
 

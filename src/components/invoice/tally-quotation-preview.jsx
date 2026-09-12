@@ -108,7 +108,7 @@ export default function TallyQuotationPreview({ data }) {
                       ["Quotation Number", quotation.number],
                       ["Quotation Date", formatDate(quotation.date)],
                       ["Valid Until", formatDate(quotation.validUntil)],
-                      ["Sales Person", quotation.salesperson],
+                      ...(quotation.salesperson ? [["Sales Person", quotation.salesperson]] : []),
                       ["Place of Supply", quotation.placeOfSupply || "07 - Delhi"],
                     ].map(([label, value]) => (
                       <tr key={label}>
@@ -164,7 +164,7 @@ export default function TallyQuotationPreview({ data }) {
                 <td style={{ border: "1px solid #000", padding: "3px 4px" }}>{item.description}</td>
                 <td style={{ border: "1px solid #000", padding: "3px 4px" }}>{item.hsnSac}</td>
                 <td style={{ border: "1px solid #000", padding: "3px 4px", textAlign: "right" }}>{formatCurrency(item.qty)}</td>
-                <td style={{ border: "1px solid #000", padding: "3px 4px" }}>{item.unit || "Nos"}</td>
+                <td style={{ border: "1px solid #000", padding: "3px 4px" }}>{item.unit || ""}</td>
                 <td style={{ border: "1px solid #000", padding: "3px 4px", textAlign: "right" }}>{formatCurrency(item.listPrice)}</td>
                 <td style={{ border: "1px solid #000", padding: "3px 4px", textAlign: "right" }}>{item.discRupees > 0 ? formatCurrency(item.discRupees) : ""}</td>
                 <td style={{ border: "1px solid #000", padding: "3px 4px", textAlign: "right" }}>{formatCurrency(item.taxableAmount)}</td>

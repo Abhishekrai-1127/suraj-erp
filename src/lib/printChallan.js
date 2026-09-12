@@ -13,16 +13,16 @@ const DEFAULT_COMPANY = {
 };
 
 function mapErpChallanToPreview(erpChallan) {
-  const refNo = erpChallan.id || erpChallan.refNo || "DC-2024-001";
-  const customerName = erpChallan.customer || erpChallan.customerName || "Acme Corp Ltd";
-  const customerAddress = erpChallan.address || erpChallan.billingAddress || "Gali No. 6, Master Mohalla, Libaspur, Delhi-42";
+  const refNo = erpChallan.id || erpChallan.refNo || "DC-001";
+  const customerName = erpChallan.customer || erpChallan.customerName || "";
+  const customerAddress = erpChallan.address || erpChallan.billingAddress || "";
 
   return {
     company: DEFAULT_COMPANY,
     challan: {
       number: refNo,
       date: erpChallan.date || erpChallan.dispatchDate || new Date().toISOString().split("T")[0],
-      partyOrderNo: erpChallan.partyOrderNo || erpChallan.poNumber || "PO-88912-X",
+      partyOrderNo: erpChallan.partyOrderNo || erpChallan.poNumber || "",
     },
     customer: {
       name: customerName,
@@ -31,19 +31,12 @@ function mapErpChallanToPreview(erpChallan) {
     items:
       erpChallan.items && erpChallan.items.length > 0
         ? erpChallan.items.map((item) => ({
-            description: item.description || "Industrial Goods",
+            description: item.description || item.name || "",
             qty: item.qty || item.quantity || 1,
-            unit: item.unit || "Nos",
+            unit: item.unit || "",
             note: item.note || "",
           }))
-        : [
-            {
-              description: "10 H.P Blower with 1440 RPM Motor.",
-              qty: 1,
-              unit: "Nos",
-              note: "Motor For Party",
-            },
-          ],
+        : [],
   };
 }
 

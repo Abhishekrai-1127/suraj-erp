@@ -5,6 +5,7 @@ import { toast } from "sonner";
 export const STORAGE_DOCUMENTS_KEY = "suraj_erp_created_documents";
 export const STORAGE_CUSTOMERS_KEY = "suraj_erp_created_customers";
 export const STORAGE_DELETED_DOCUMENTS_KEY = "suraj_erp_deleted_documents";
+export const STORAGE_SALES_TARGET_KEY = "suraj_erp_monthly_sales_target";
 
 export function uploadPdfToCloudStorage(pdfBlob, refNo, type = "document") {
   return Promise.resolve(null);
@@ -20,6 +21,20 @@ export function getDeletedDocumentIds() {
   }
 }
 
+const LEGACY_MOCK_ENTITIES = new Set([
+  "SO-2024-4134",
+  "SO-2024-2221",
+  "SO-2024-8891",
+  "INV-2024-001",
+  "INV-2024-002",
+  "INV-2024-4134",
+  "INV-2024-2221",
+  "QT-2024-001",
+  "QT-2024-002",
+  "Lumina Marketing",
+  "Apex Corp Solutions",
+]);
+
 export function getStoredDocuments() {
   if (typeof window === "undefined") return [];
   try {
@@ -30,15 +45,36 @@ export function getStoredDocuments() {
 
     const deletedIds = getDeletedDocumentIds();
 
-    // Deduplicate by refNo / id and exclude deleted document IDs
+    // Deduplicate by refNo / id, exclude deleted document IDs, and purge legacy mock items
     const seen = new Set();
     const uniqueDocs = [];
+    let hadLegacyMocks = false;
+
     for (const doc of parsed) {
       const key = doc.refNo || doc.id;
-      if (key && (seen.has(key) || deletedIds.includes(key))) continue;
+      const cust = doc.customer || "";
+
+      if (
+        LEGACY_MOCK_ENTITIES.has(key) ||
+        LEGACY_MOCK_ENTITIES.has(cust) ||
+        (key && deletedIds.includes(key))
+      ) {
+        hadLegacyMocks = true;
+        continue;
+      }
+
+      if (key && seen.has(key)) continue;
       if (key) seen.add(key);
       uniqueDocs.push(doc);
     }
+
+    // Persist cleaned list back to storage if legacy mock items were found
+    if (hadLegacyMocks && typeof window !== "undefined") {
+      try {
+        localStorage.setItem(STORAGE_DOCUMENTS_KEY, JSON.stringify(uniqueDocs));
+      } catch (e) {}
+    }
+
     return uniqueDocs;
   } catch (e) {
     console.error("Failed to read documents from localStorage", e);
@@ -75,22 +111,7 @@ export function hasInvoiceForSalesOrder(salesOrderNo) {
         d.refNo === cleanSO)
   );
 
-  if (existingStored) return true;
-
-  // Fallback check against default mock invoices if not deleted
-  const defaultMockInvoices = [
-    "INV-2024-001",
-    "INV-2024-002",
-    "INV-2024-003",
-    "INV-2024-004",
-    "INV-2024-005",
-  ];
-
-  return defaultMockInvoices.some(
-    (invId) =>
-      !deletedIds.includes(invId) &&
-      (invId === expectedInvRef || invId === cleanSO)
-  );
+  return Boolean(existingStored);
 }
 
 export function saveDocument(doc) {
@@ -212,3 +233,114 @@ export function saveCustomer(customer) {
     });
   }
 }
+
+/**
+ * Retrieves the sales target for a specific month (defaults to current month YYYY-MM).
+ * Keyed by calendar month so monthly targets do not spill across financial periods.
+ * Called by SalesTarget and SetSalesTargetModal widgets.
+ *
+ * @param {string} [monthKey] - Format: "YYYY-MM" (e.g., "2026-09")
+ * @returns {{ targetAmount: number, isSet: boolean, month: string }}
+ */
+export function getStoredSalesTarget(monthKey) {
+  const currentMonth = monthKey || new Date().toISOString().slice(0, 7);
+  if (typeof window === "undefined") {
+    return { targetAmount: 0, isSet: false, month: currentMonth };
+  }
+
+  try {
+    const raw = localStorage.getItem(STORAGE_SALES_TARGET_KEY);
+    if (!raw) {
+      return { targetAmount: 0, isSet: false, month: currentMonth };
+    }
+
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed === "object") {
+      if (typeof parsed[currentMonth] === "number") {
+        return {
+          targetAmount: parsed[currentMonth],
+          isSet: true,
+          month: currentMonth,
+        };
+      }
+      if (parsed.month === currentMonth && typeof parsed.amount === "number") {
+        return {
+          targetAmount: parsed.amount,
+          isSet: Boolean(parsed.isSet),
+          month: currentMonth,
+        };
+      }
+    } else if (typeof parsed === "number") {
+      return { targetAmount: parsed, isSet: true, month: currentMonth };
+    }
+
+    return { targetAmount: 0, isSet: false, month: currentMonth };
+  } catch (e) {
+    console.error("Failed to read sales target from localStorage", e);
+    return { targetAmount: 0, isSet: false, month: currentMonth };
+  }
+}
+
+/**
+ * Persists a sales target for a given month and dispatches real-time DOM update event
+ * so all listening metrics widgets and open tabs reflect changes synchronously.
+ *
+ * @param {number|string} amount
+ * @param {string} [monthKey]
+ */
+export function saveSalesTarget(amount, monthKey) {
+  if (typeof window === "undefined") return;
+  const currentMonth = monthKey || new Date().toISOString().slice(0, 7);
+  const targetNum = Number(amount) || 0;
+
+  try {
+    let targets = {};
+    const raw = localStorage.getItem(STORAGE_SALES_TARGET_KEY);
+    if (raw) {
+      try {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+          if (parsed.month && typeof parsed.amount === "number") {
+            targets[parsed.month] = parsed.amount;
+          } else {
+            targets = { ...parsed };
+          }
+        }
+      } catch (err) {
+        targets = {};
+      }
+    }
+
+    targets[currentMonth] = targetNum;
+    localStorage.setItem(STORAGE_SALES_TARGET_KEY, JSON.stringify(targets));
+    window.dispatchEvent(new Event("erp_sales_target_updated"));
+  } catch (e) {
+    console.error("Failed to save sales target to localStorage", e);
+    toast.error("Failed to save sales target.");
+  }
+}
+
+/**
+ * Resets / unsets the sales target for the specified month and notifies widgets.
+ *
+ * @param {string} [monthKey]
+ */
+export function resetSalesTarget(monthKey) {
+  if (typeof window === "undefined") return;
+  const currentMonth = monthKey || new Date().toISOString().slice(0, 7);
+
+  try {
+    const raw = localStorage.getItem(STORAGE_SALES_TARGET_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === "object") {
+        delete parsed[currentMonth];
+        localStorage.setItem(STORAGE_SALES_TARGET_KEY, JSON.stringify(parsed));
+      }
+    }
+    window.dispatchEvent(new Event("erp_sales_target_updated"));
+  } catch (e) {
+    console.error("Failed to reset sales target in localStorage", e);
+  }
+}
+

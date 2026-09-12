@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { CrmHeader } from "@/components/crm/crm-header";
@@ -10,15 +10,15 @@ import { LeadKanbanBoard } from "@/components/crm/lead-kanban-board";
 import { AddEditCrmModal } from "@/components/crm/add-edit-crm-modal";
 import { CrmDetailsDrawer } from "@/components/crm/crm-details-drawer";
 import {
-  getStoredCrmCustomers,
-  getStoredLeads,
-  getStoredContacts,
-  getStoredDeals,
-  saveCrmCustomer,
-  deleteCrmCustomer,
-  deleteLead,
-  deleteDeal,
-} from "@/lib/crm-storage";
+  useCrmCustomers,
+  useCrmLeads,
+  useCrmContacts,
+  useCrmDeals,
+  useCreateCustomerMutation,
+  useDeleteCustomerMutation,
+  useDeleteLeadMutation,
+  useDeleteDealMutation,
+} from "@/hooks/use-crm-store";
 
 export default function CRMPage() {
   const router = useRouter();
@@ -28,38 +28,34 @@ export default function CRMPage() {
   const [editingRecord, setEditingRecord] = useState(null);
   const [selectedRecord, setSelectedRecord] = useState(null);
 
-  // Live Records State
-  const [customers, setCustomers] = useState([]);
-  const [leads, setLeads] = useState([]);
-  const [contacts, setContacts] = useState([]);
-  const [deals, setDeals] = useState([]);
+  // TanStack Query Hooks & Mutations
+  const { data: rawCustomers = [] } = useCrmCustomers();
+  const { data: rawLeads = [] } = useCrmLeads();
+  const { data: rawContacts = [] } = useCrmContacts();
+  const { data: rawDeals = [] } = useCrmDeals();
 
-  const loadAllCrmData = () => {
-    setCustomers(getStoredCrmCustomers());
-    setLeads(getStoredLeads());
-    setContacts(getStoredContacts());
-    setDeals(getStoredDeals());
-  };
+  const customers = Array.isArray(rawCustomers) ? rawCustomers : [];
+  const leads = Array.isArray(rawLeads) ? rawLeads : [];
+  const contacts = Array.isArray(rawContacts) ? rawContacts : [];
+  const deals = Array.isArray(rawDeals) ? rawDeals : [];
 
-  useEffect(() => {
-    loadAllCrmData();
-    window.addEventListener("suraj_crm_updated", loadAllCrmData);
-    window.addEventListener("storage", loadAllCrmData);
-    return () => {
-      window.removeEventListener("suraj_crm_updated", loadAllCrmData);
-      window.removeEventListener("storage", loadAllCrmData);
-    };
-  }, []);
+  const createCustomerMutation = useCreateCustomerMutation();
+  const deleteCustomerMutation = useDeleteCustomerMutation();
+  const deleteLeadMutation = useDeleteLeadMutation();
+  const deleteDealMutation = useDeleteDealMutation();
 
   const totalOutstanding = customers.reduce((acc, curr) => acc + (curr.numericOutstanding || 0), 0);
-  const totalPipelineValue = leads.reduce((acc, curr) => acc + (curr.numericValue || 0), 0) +
-    deals.reduce((acc, curr) => acc + (curr.numericValue || 0), 0);
+  // Deals pipeline value commented out per requirement
+  const totalPipelineValue =
+    leads.reduce((acc, curr) => acc + (curr.numericValue || 0), 0);
+    // + deals.reduce((acc, curr) => acc + (curr.numericValue || 0), 0);
 
   const handleExportCsv = () => {
     let dataToExport = customers;
     if (activeTab === "Leads") dataToExport = leads;
     if (activeTab === "Contacts") dataToExport = contacts;
-    if (activeTab.startsWith("Deals")) dataToExport = deals;
+    // Deals export commented out per requirement
+    // if (activeTab.startsWith("Deals")) dataToExport = deals;
 
     if (dataToExport.length === 0) {
       toast.warning(`No ${activeTab} records available to export.`);
@@ -94,7 +90,15 @@ export default function CRMPage() {
           const parsed = JSON.parse(text);
           if (Array.isArray(parsed)) {
             parsed.forEach((item) => {
-              saveCrmCustomer({ id: `cust-${Date.now()}-${Math.random()}`, ...item });
+              createCustomerMutation.mutate({
+                type: item.type || "Customer",
+                name: item.name || "Imported Customer",
+                company: item.company || "Imported Company",
+                email: item.email || "",
+                phone: item.phone || "",
+                status: item.status || "Active",
+                ...item,
+              });
               count++;
             });
           }
@@ -104,8 +108,8 @@ export default function CRMPage() {
             for (let i = 1; i < lines.length; i++) {
               const cols = lines[i].split(",");
               if (cols.length >= 2) {
-                saveCrmCustomer({
-                  id: `cust-${Date.now()}-${i}`,
+                createCustomerMutation.mutate({
+                  type: "Customer",
                   name: cols[0].replace(/"/g, "").trim(),
                   company: cols[1] ? cols[1].replace(/"/g, "").trim() : "Imported Company",
                   email: cols[2] ? cols[2].replace(/"/g, "").trim() : "",
@@ -117,7 +121,7 @@ export default function CRMPage() {
             }
           }
         }
-        toast.success(`Successfully imported ${count} CRM records from ${file.name}`);
+        toast.success(`Successfully queued ${count} CRM records for import from ${file.name}`);
       } catch (err) {
         toast.error("Failed to parse import file. Please upload valid CSV or JSON.");
       }
@@ -135,12 +139,11 @@ export default function CRMPage() {
   const handleDeleteRecord = (record) => {
     if (!record) return;
     if (record.stage) {
-      deleteLead(record.id);
-      deleteDeal(record.id);
+      deleteLeadMutation.mutate(record.id);
+      deleteDealMutation.mutate(record.id);
     } else {
-      deleteCrmCustomer(record.id);
+      deleteCustomerMutation.mutate(record.id);
     }
-    toast.success(`Deleted ${record.company || record.name || record.title}`);
     if (selectedRecord && selectedRecord.id === record.id) {
       setSelectedRecord(null);
     }
@@ -169,13 +172,14 @@ export default function CRMPage() {
         totalOutstanding={totalOutstanding}
       />
 
-      {/* 3. Main CRM Content Area */}
-      <div className="bg-white dark:bg-[#1b1d26] rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs flex flex-col">
-        {viewMode === "kanban" && (activeTab === "Leads" || activeTab.startsWith("Deals")) ? (
-          <div className="p-5">
+      {/* 3. Main CRM Content Area (Extended section for comfortable height & scrolling) */}
+      <div className="bg-white dark:bg-[#1b1d26] rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs flex flex-col flex-1 min-h-[580px]">
+        {/* Deals Kanban commented out per requirement */}
+        {viewMode === "kanban" && activeTab === "Leads" ? (
+          <div className="p-5 flex-1">
             <LeadKanbanBoard
-              items={activeTab.startsWith("Deals") ? deals : leads}
-              isDeals={activeTab.startsWith("Deals")}
+              items={leads}
+              isDeals={false}
               onSelectRecord={(rec) => setSelectedRecord(rec)}
               onAddRecord={() => {
                 setEditingRecord(null);

@@ -1,10 +1,12 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import SalesTabNav from "@/components/sales/sales-tab-nav";
 import QuickAddModal from "@/components/sales/quick-add-modal";
 import EditDocumentModal from "@/components/sales/edit-document-modal";
 import { getStoredDocuments, deleteStoredDocument, getDeletedDocumentIds } from "@/lib/erp-storage";
+import { useSalesDocuments } from "@/hooks/use-sales-store";
+import { normalizeSalesDocStatus } from "@/services/sales-api";
 import { downloadQuotationPDF } from "@/lib/printQuotation";
 import {
   Upload,
@@ -20,64 +22,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
-const initialQuotations = [
-  {
-    id: "QT-2023-1102",
-    customer: "Acme Logistics Inc.",
-    location: "New York, US",
-    initials: "AL",
-    date: "Oct 24, 2023",
-    validUntil: "Nov 24, 2023",
-    amount: "₹12,450.00",
-    salesPerson: "Sarah Chen",
-    status: "Sent",
-  },
-  {
-    id: "QT-2023-1101",
-    customer: "Global Tech Solutions",
-    location: "San Francisco, US",
-    initials: "GT",
-    date: "Oct 23, 2023",
-    validUntil: "Oct 30, 2023",
-    validExpired: true,
-    amount: "₹8,200.00",
-    salesPerson: "Marcus Thorne",
-    status: "Expired",
-  },
-  {
-    id: "QT-2023-1100",
-    customer: "Zenith Enterprises",
-    location: "London, UK",
-    initials: "ZE",
-    date: "Oct 22, 2023",
-    validUntil: "Nov 22, 2023",
-    amount: "₹45,000.00",
-    salesPerson: "David Miller",
-    status: "Accepted",
-  },
-  {
-    id: "QT-2023-1099",
-    customer: "Nexa Systems",
-    location: "Berlin, DE",
-    initials: "NS",
-    date: "Oct 21, 2023",
-    validUntil: "Nov 21, 2023",
-    amount: "₹2,100.00",
-    salesPerson: "Sarah Chen",
-    status: "Draft",
-  },
-  {
-    id: "QT-2023-1098",
-    customer: "Frontier Logistics",
-    location: "Toronto, CA",
-    initials: "FL",
-    date: "Oct 20, 2023",
-    validUntil: "Nov 20, 2023",
-    amount: "₹19,700.50",
-    salesPerson: "Marcus Thorne",
-    status: "Sent",
-  },
-];
+const initialQuotations = [];
 
 export default function QuotationsPage() {
   const [selectedRows, setSelectedRows] = useState([]);
@@ -95,11 +40,10 @@ export default function QuotationsPage() {
           location: "Headquarters",
           initials: d.initials || "QT",
           date: d.date,
-          validUntil: d.validUntil || "30 Days",
+          validUntil: d.validUntil || "-",
           amount: d.amount,
           numericAmount: d.numericAmount,
-          salesPerson: d.salesPerson || "Sarah Chen",
-          status: d.status || "Sent",
+          status: normalizeSalesDocStatus(d.status, "quotation") || "PENDING",
           items: d.items,
           gstin: d.gstin,
           billingAddress: d.billingAddress,
@@ -121,32 +65,78 @@ export default function QuotationsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
 
+  const { data: rawApiQuotations = [] } = useSalesDocuments({ type: "quotation" });
   const deletedIds = getDeletedDocumentIds();
-  const allQuotations = [...storedQuotations, ...initialQuotations].filter(
-    (q) => !deletedIds.includes(q.id) && !deletedIds.includes(q.refNo)
-  );
+
+  // Combine API results and locally stored documents, de-duplicating by refNo/id
+  const allQuotations = useMemo(() => {
+    const apiDocs = Array.isArray(rawApiQuotations) ? rawApiQuotations : [];
+    const map = new Map();
+
+    storedQuotations.forEach((q) => {
+      const key = q.id || q.refNo;
+      if (key && !deletedIds.includes(key)) {
+        map.set(key, q);
+      }
+    });
+
+    apiDocs.forEach((d) => {
+      const key = d.refNo || d.id;
+      if (key && !deletedIds.includes(key)) {
+        map.set(key, {
+          id: d.refNo || d.id,
+          customer: d.customer,
+          location: d.placeOfSupply || "Headquarters",
+          initials: d.customer ? d.customer.slice(0, 2).toUpperCase() : "QT",
+          date: d.date || "-",
+          validUntil: d.validUntil || "-",
+          amount: `₹${Number(d.grandTotal || 0).toLocaleString("en-IN", {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+          })}`,
+          numericAmount: Number(d.grandTotal || 0),
+          status: normalizeSalesDocStatus(d.status, "quotation") || "PENDING",
+          items: d.items || [],
+          gstin: d.gstin || "",
+          billingAddress: d.placeOfSupply || "",
+          expiryDate: d.validUntil || "",
+        });
+      }
+    });
+
+    return Array.from(map.values());
+  }, [storedQuotations, rawApiQuotations, deletedIds]);
 
   const filteredQuotations = allQuotations.filter((q) => {
-    if (statusFilter !== "All" && q.status !== statusFilter) return false;
+    if (statusFilter !== "All") {
+      const qStatus = normalizeSalesDocStatus(q.status, "quotation");
+      if (qStatus !== statusFilter) return false;
+    }
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
       return (
         q.id.toLowerCase().includes(query) ||
-        q.customer.toLowerCase().includes(query) ||
-        q.salesPerson.toLowerCase().includes(query) ||
-        q.status.toLowerCase().includes(query)
+        q.customer.toLowerCase().includes(query)
       );
     }
     return true;
   });
 
-  const toggleRow = (id) => {
+  const handleSelectAll = (e) => {
+    if (e.target.checked) {
+      setSelectedRows(filteredQuotations.map((q) => q.id));
+    } else {
+      setSelectedRows([]);
+    }
+  };
+
+  const handleSelectRow = (id) => {
     setSelectedRows((prev) =>
       prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
     );
   };
 
-  const handleDeleteSelected = () => {
+  const handleDeleteBatch = () => {
     if (selectedRows.length === 0) return;
     const count = selectedRows.length;
     selectedRows.forEach((id) => deleteStoredDocument(id));
@@ -161,34 +151,33 @@ export default function QuotationsPage() {
   };
 
   const getStatusBadge = (status) => {
-    switch (status) {
-      case "Sent":
-        return (
-          <span className="px-2.5 py-1 rounded-md text-[11px] font-extrabold bg-emerald-100/80 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400">
-            Sent (under dev)
-          </span>
-        );
-      case "Expired":
-        return (
-          <span className="px-2.5 py-1 rounded-md text-[11px] font-extrabold bg-amber-100/80 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400">
-            Expired (under dev)
-          </span>
-        );
-      case "Accepted":
-        return (
-          <span className="px-2.5 py-1 rounded-md text-[11px] font-extrabold bg-blue-100/80 text-blue-700 dark:bg-blue-950/40 dark:text-blue-400">
-            Accepted (under dev)
-          </span>
-        );
-      case "Draft":
-        return (
-          <span className="px-2.5 py-1 rounded-md text-[11px] font-extrabold bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400">
-            Draft (under dev)
-          </span>
-        );
-      default:
-        return <span>{status} (under dev)</span>;
+    const s = String(status || "").toUpperCase();
+    if (s === "APPROVED" || s === "ACCEPTED") {
+      return (
+        <span className="px-2.5 py-1 rounded-md text-[11px] font-extrabold bg-emerald-100/80 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400">
+          APPROVED
+        </span>
+      );
     }
+    if (s === "CANCELLED" || s === "EXPIRED") {
+      return (
+        <span className="px-2.5 py-1 rounded-md text-[11px] font-extrabold bg-rose-100/80 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400">
+          CANCELLED
+        </span>
+      );
+    }
+    if (s === "DRAFT") {
+      return (
+        <span className="px-2.5 py-1 rounded-md text-[11px] font-extrabold bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400">
+          DRAFT
+        </span>
+      );
+    }
+    return (
+      <span className="px-2.5 py-1 rounded-md text-[11px] font-extrabold bg-blue-100/80 text-blue-700 dark:bg-blue-950/40 dark:text-blue-400">
+        PENDING
+      </span>
+    );
   };
 
   return (
@@ -311,7 +300,7 @@ export default function QuotationsPage() {
                 <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input
                   type="text"
-                  placeholder="Search by ID, customer name, salesperson..."
+                  placeholder="Search by ID, customer name..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="w-full pl-9 pr-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-semibold"
@@ -319,7 +308,7 @@ export default function QuotationsPage() {
               </div>
 
               <div className="flex items-center gap-1 overflow-x-auto">
-                {["All", "Sent", "Accepted", "Draft", "Expired"].map((st) => (
+                {["All", "PENDING", "APPROVED", "DRAFT", "CANCELLED"].map((st) => (
                   <button
                     key={st}
                     onClick={() => setStatusFilter(st)}
@@ -364,7 +353,8 @@ export default function QuotationsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-xs font-semibold">
-              {filteredQuotations.map((row) => {
+              {filteredQuotations.length > 0 ? (
+                filteredQuotations.map((row) => {
                 const isChecked = selectedRows.includes(row.id);
                 return (
                   <tr
@@ -413,19 +403,20 @@ export default function QuotationsPage() {
                         </div>
                       </div>
                     </td>
-                    <td className="py-3.5 px-4 text-slate-600 dark:text-slate-400">
+                    <td className="py-3.5 px-4 text-slate-600 dark:text-slate-300">
                       {row.date}
                     </td>
-                    <td
-                      className={`py-3.5 px-4 ${
-                        row.validExpired
-                          ? "text-rose-600 font-bold"
-                          : "text-slate-600 dark:text-slate-400"
-                      }`}
-                    >
-                      {row.validUntil}
+                    <td className="py-3.5 px-4">
+                      <div className="text-slate-600 dark:text-slate-300">
+                        {row.validUntil}
+                      </div>
+                      {row.validExpired && (
+                        <div className="text-[10px] font-bold text-amber-600 dark:text-amber-400">
+                          Expired
+                        </div>
+                      )}
                     </td>
-                    <td className="py-3.5 px-4 text-slate-900 dark:text-white font-black">
+                    <td className="py-3.5 px-4 font-black text-slate-900 dark:text-white">
                       {row.amount}
                     </td>
                     <td className="py-3.5 px-4">{getStatusBadge(row.status)}</td>
@@ -440,7 +431,14 @@ export default function QuotationsPage() {
                     </td>
                   </tr>
                 );
-              })}
+              })
+            ) : (
+              <tr>
+                <td colSpan={8} className="text-center py-12 text-slate-400 dark:text-slate-500 font-medium">
+                  No quotations found. Click &quot;Create Quotation&quot; to create one.
+                </td>
+              </tr>
+            )}
             </tbody>
           </table>
         </div>

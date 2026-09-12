@@ -110,7 +110,7 @@ export default function InventoryOverviewPage() {
       <InventoryHeader title="Inventory Management" subtitle="Manage products, warehouses, stock movement, inventory valuation and manufacturing materials in real-time." />
       <InventoryTabNav />
 
-      {/* 8 TOP METRIC KPI CARDS (Matching Screenshot Grid) */}
+      {/* 8 TOP METRIC KPI CARDS (Dynamic live metrics) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         
         {/* Card 1: TOTAL PRODUCTS */}
@@ -122,9 +122,11 @@ export default function InventoryOverviewPage() {
             </div>
           </div>
           <div className="mt-2">
-            <div className="text-2xl font-black text-slate-900 dark:text-white">12,482</div>
-            <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400">
-              ↗ +2.4% <span className="font-medium text-slate-400">this month</span>
+            <div suppressHydrationWarning className="text-2xl font-black text-slate-900 dark:text-white">
+              {products.length.toLocaleString("en-IN")}
+            </div>
+            <span suppressHydrationWarning className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400">
+              ↗ Active Catalog
             </span>
           </div>
         </div>
@@ -138,9 +140,11 @@ export default function InventoryOverviewPage() {
             </div>
           </div>
           <div className="mt-2">
-            <div className="text-2xl font-black text-slate-900 dark:text-white">84,102</div>
-            <span className="text-[11px] font-bold text-amber-600 dark:text-amber-400">
-              ↘ -0.8% <span className="font-medium text-slate-400">this month</span>
+            <div suppressHydrationWarning className="text-2xl font-black text-slate-900 dark:text-white">
+              {products.reduce((sum, p) => sum + (Number(p.stock) || 0), 0).toLocaleString("en-IN")}
+            </div>
+            <span suppressHydrationWarning className="text-[11px] font-bold text-slate-400">
+              Units In Storage
             </span>
           </div>
         </div>
@@ -154,7 +158,9 @@ export default function InventoryOverviewPage() {
             </div>
           </div>
           <div className="mt-2">
-            <div className="text-2xl font-black text-amber-600 dark:text-amber-400">42</div>
+            <div suppressHydrationWarning className="text-2xl font-black text-amber-600 dark:text-amber-400">
+              {products.filter((p) => (Number(p.stock) || 0) <= (Number(p.minStock) || 10) && (Number(p.stock) || 0) > 0).length}
+            </div>
             <span className="text-[11px] font-extrabold text-amber-700 dark:text-amber-300">Needs Reorder</span>
           </div>
         </div>
@@ -168,8 +174,10 @@ export default function InventoryOverviewPage() {
             </div>
           </div>
           <div className="mt-2">
-            <div className="text-2xl font-black text-rose-600 dark:text-rose-400">15</div>
-            <span className="text-[11px] font-extrabold text-rose-700 dark:text-rose-300">! Critical Action</span>
+            <div suppressHydrationWarning className="text-2xl font-black text-rose-600 dark:text-rose-400">
+              {products.filter((p) => (Number(p.stock) || 0) === 0).length}
+            </div>
+            <span className="text-[11px] font-extrabold text-rose-700 dark:text-rose-300">Critical Action</span>
           </div>
         </div>
 
@@ -182,9 +190,11 @@ export default function InventoryOverviewPage() {
             </div>
           </div>
           <div className="mt-2">
-            <div className="text-2xl font-black text-slate-900 dark:text-white">₹4.2M</div>
+            <div suppressHydrationWarning className="text-2xl font-black text-slate-900 dark:text-white">
+              ₹{products.reduce((sum, p) => sum + (Number(p.stock) || 0) * (Number(p.unitPrice) || 0), 0).toLocaleString("en-IN")}
+            </div>
             <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400">
-              ↗ +12% <span className="font-medium text-slate-400">vs LY</span>
+              Live Asset Valuation
             </span>
           </div>
         </div>
@@ -198,8 +208,10 @@ export default function InventoryOverviewPage() {
             </div>
           </div>
           <div className="mt-2">
-            <div className="text-2xl font-black text-slate-900 dark:text-white">5,200</div>
-            <span className="text-[11px] font-bold text-slate-500">120 Pending</span>
+            <div suppressHydrationWarning className="text-2xl font-black text-slate-900 dark:text-white">
+              {movements.filter((m) => m.type === "STOCK IN").length}
+            </div>
+            <span className="text-[11px] font-bold text-slate-500">Recorded Receipts</span>
           </div>
         </div>
 
@@ -212,8 +224,10 @@ export default function InventoryOverviewPage() {
             </div>
           </div>
           <div className="mt-2">
-            <div className="text-2xl font-black text-slate-900 dark:text-white">4,850</div>
-            <span className="text-[11px] font-bold text-emerald-600">On track</span>
+            <div suppressHydrationWarning className="text-2xl font-black text-slate-900 dark:text-white">
+              {movements.filter((m) => m.type === "STOCK OUT").length}
+            </div>
+            <span className="text-[11px] font-bold text-emerald-600">Dispatched Batches</span>
           </div>
         </div>
 
@@ -491,32 +505,40 @@ export default function InventoryOverviewPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-xs font-semibold">
-              {movements.map((mov) => (
-                <tr key={mov.id} className="hover:bg-blue-50/40 dark:hover:bg-slate-800/50 transition">
-                  <td className="py-3.5 px-4">
-                    <div className="flex items-center gap-3">
-                      <div className="h-9 w-9 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 overflow-hidden shrink-0 flex items-center justify-center text-slate-400 font-bold text-[10px]">
-                        📦
+              {movements.length > 0 ? (
+                movements.map((mov) => (
+                  <tr key={mov.id} className="hover:bg-blue-50/40 dark:hover:bg-slate-800/50 transition">
+                    <td className="py-3.5 px-4">
+                      <div className="flex items-center gap-3">
+                        <div className="h-9 w-9 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 overflow-hidden shrink-0 flex items-center justify-center text-slate-400 font-bold text-[10px]">
+                          📦
+                        </div>
+                        <div>
+                          <div className="text-slate-900 dark:text-white font-extrabold">{mov.productName}</div>
+                          <div className="text-[11px] font-mono text-slate-400">SKU: {mov.sku}</div>
+                        </div>
                       </div>
-                      <div>
-                        <div className="text-slate-900 dark:text-white font-extrabold">{mov.productName}</div>
-                        <div className="text-[11px] font-mono text-slate-400">SKU: {mov.sku}</div>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="py-3.5 px-4 text-slate-700 dark:text-slate-300 font-bold">{mov.warehouse}</td>
-                  <td className="py-3.5 px-4">{getMovementBadge(mov.type)}</td>
-                  <td className="py-3.5 px-4 font-black text-slate-900 dark:text-white">{mov.quantity}</td>
-                  <td className="py-3.5 px-4 text-slate-500 font-medium">{mov.dateTime}</td>
-                  <td className="py-3.5 px-4 text-slate-700 dark:text-slate-300">{mov.user}</td>
-                  <td className="py-3.5 px-4">
-                    <span className="flex items-center gap-1.5 text-blue-600 dark:text-blue-400 font-bold text-xs">
-                      <span className="h-2 w-2 rounded-full bg-blue-600" />
-                      {mov.status}
-                    </span>
+                    </td>
+                    <td className="py-3.5 px-4 text-slate-700 dark:text-slate-300 font-bold">{mov.warehouse}</td>
+                    <td className="py-3.5 px-4">{getMovementBadge(mov.type)}</td>
+                    <td className="py-3.5 px-4 font-black text-slate-900 dark:text-white">{mov.quantity}</td>
+                    <td className="py-3.5 px-4 text-slate-500 font-medium">{mov.dateTime}</td>
+                    <td className="py-3.5 px-4 text-slate-700 dark:text-slate-300">{mov.user}</td>
+                    <td className="py-3.5 px-4">
+                      <span className="flex items-center gap-1.5 text-blue-600 dark:text-blue-400 font-bold text-xs">
+                        <span className="h-2 w-2 rounded-full bg-blue-600" />
+                        {mov.status}
+                      </span>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={7} className="text-center py-12 text-slate-400 dark:text-slate-500 font-medium">
+                    No stock movements recorded yet. Click &quot;Receive Stock&quot; to log movement.
                   </td>
                 </tr>
-              ))}
+              )}
             </tbody>
           </table>
         </div>

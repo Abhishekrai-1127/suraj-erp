@@ -6,96 +6,7 @@ import { toast } from "sonner";
 import { getStoredDocuments } from "@/lib/erp-storage";
 import EditDocumentModal from "@/components/sales/edit-document-modal";
 
-const initialTransactions = [
-  {
-    refNo: "SO-2023-0891",
-    customer: "Apex Corp Solutions",
-    category: "Tech Hardware",
-    initials: "AC",
-    date: "Oct 12, 2023",
-    amount: "₹12,450.00",
-    numericAmount: 12450,
-    status: "COMPLETED",
-    type: "order",
-  },
-  {
-    refNo: "INV-2023-4421",
-    customer: "Lumina Marketing",
-    category: "Advertising",
-    initials: "LM",
-    date: "Oct 11, 2023",
-    amount: "₹4,200.00",
-    numericAmount: 4200,
-    status: "IN PROGRESS",
-    type: "invoice",
-  },
-  {
-    refNo: "QT-2023-998",
-    customer: "Global Enterprises",
-    category: "Logistics",
-    initials: "GE",
-    date: "Oct 11, 2023",
-    amount: "₹28,900.00",
-    numericAmount: 28900,
-    status: "PENDING APPROVAL",
-    type: "order",
-  },
-  {
-    refNo: "INV-2023-4418",
-    customer: "Blue Note Café",
-    category: "Retail",
-    initials: "BN",
-    date: "Oct 10, 2023",
-    amount: "₹1,150.00",
-    numericAmount: 1150,
-    status: "OVERDUE",
-    type: "invoice",
-  },
-  {
-    refNo: "SO-2023-0885",
-    customer: "Vanguard Dynamics",
-    category: "Manufacturing",
-    initials: "VD",
-    date: "Oct 09, 2023",
-    amount: "₹45,600.00",
-    numericAmount: 45600,
-    status: "COMPLETED",
-    type: "order",
-  },
-  {
-    refNo: "QT-2023-1004",
-    customer: "Apex Corp Solutions",
-    category: "Tech Hardware",
-    initials: "AC",
-    date: "Oct 08, 2023",
-    amount: "₹14,200.00",
-    numericAmount: 14200,
-    status: "QUOTATION",
-    type: "quotation",
-  },
-  {
-    refNo: "SO-2023-0892",
-    customer: "Lumina Marketing",
-    category: "Advertising",
-    initials: "LM",
-    date: "Oct 07, 2023",
-    amount: "₹8,500.00",
-    numericAmount: 8500,
-    status: "PRODUCTION",
-    type: "order",
-  },
-  {
-    refNo: "INV-2023-4422",
-    customer: "Global Enterprises",
-    category: "Logistics",
-    initials: "GE",
-    date: "Oct 06, 2023",
-    amount: "₹28,900.00",
-    numericAmount: 28900,
-    status: "IN PROGRESS",
-    type: "invoice",
-  },
-];
+const initialTransactions = [];
 
 export default function RecentTransactions({
   searchQuery = "",
@@ -107,9 +18,11 @@ export default function RecentTransactions({
   const [activeFilter, setActiveFilter] = useState("All");
   const [openRowMenu, setOpenRowMenu] = useState(null);
   const [editingDoc, setEditingDoc] = useState(null);
-  const [storedDocs, setStoredDocs] = useState(() => getStoredDocuments());
+  const [storedDocs, setStoredDocs] = useState([]);
 
   useEffect(() => {
+    /* eslint-disable react-hooks/set-state-in-effect */
+    setStoredDocs(getStoredDocuments());
     const handleUpdate = () => {
       setStoredDocs(getStoredDocuments());
     };

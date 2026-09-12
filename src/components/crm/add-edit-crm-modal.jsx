@@ -3,10 +3,39 @@
 import React, { useState, useEffect } from "react";
 import { X, Check } from "lucide-react";
 import { toast } from "sonner";
-import { saveCrmCustomer, saveLead, saveContact, saveDeal } from "@/lib/crm-storage";
+import {
+  useCreateCustomerMutation,
+  useUpdateCustomerMutation,
+  useCreateLeadMutation,
+  useUpdateLeadMutation,
+  useCreateContactMutation,
+  useUpdateContactMutation,
+  useCreateDealMutation,
+  useUpdateDealMutation,
+} from "@/hooks/use-crm-store";
 
 export function AddEditCrmModal({ isOpen, onClose, recordToEdit, defaultTab = "Customer" }) {
   const [recordType, setRecordType] = useState("Customer");
+
+  // TanStack Query Mutations
+  const createCustomerMutation = useCreateCustomerMutation();
+  const updateCustomerMutation = useUpdateCustomerMutation();
+  const createLeadMutation = useCreateLeadMutation();
+  const updateLeadMutation = useUpdateLeadMutation();
+  const createContactMutation = useCreateContactMutation();
+  const updateContactMutation = useUpdateContactMutation();
+  const createDealMutation = useCreateDealMutation();
+  const updateDealMutation = useUpdateDealMutation();
+
+  const isSubmitting =
+    createCustomerMutation.isPending ||
+    updateCustomerMutation.isPending ||
+    createLeadMutation.isPending ||
+    updateLeadMutation.isPending ||
+    createContactMutation.isPending ||
+    updateContactMutation.isPending ||
+    createDealMutation.isPending ||
+    updateDealMutation.isPending;
 
   // Customer / Vendor Form
   const [customerForm, setCustomerForm] = useState({
@@ -14,12 +43,13 @@ export function AddEditCrmModal({ isOpen, onClose, recordToEdit, defaultTab = "C
     company: "",
     email: "",
     phone: "",
+    stage: "New",
+    source: "Inbound Web Inquiry",
     gst: "",
     category: "Logistics",
     status: "Active",
     outstanding: "0",
     creditLimit: "500000",
-    assignedRep: "Sarah Jenkins",
     billingAddress: "",
     shippingAddress: "",
     notes: "",
@@ -31,10 +61,9 @@ export function AddEditCrmModal({ isOpen, onClose, recordToEdit, defaultTab = "C
     company: "",
     email: "",
     phone: "",
-    source: "Direct Outreach",
-    estimatedValue: "350000",
     stage: "New",
-    assignedRep: "Sarah Jenkins",
+    source: "Inbound Web Inquiry",
+    estimatedValue: "350000",
     score: "75",
     notes: "",
   });
@@ -47,7 +76,6 @@ export function AddEditCrmModal({ isOpen, onClose, recordToEdit, defaultTab = "C
     email: "",
     phone: "",
     preferredMethod: "Email",
-    assignedRep: "Sarah Jenkins",
     notes: "",
   });
 
@@ -58,12 +86,12 @@ export function AddEditCrmModal({ isOpen, onClose, recordToEdit, defaultTab = "C
     customer: "",
     value: "500000",
     stage: "Discovery",
-    closingDate: new Date(Date.now() + 30 * 86400000).toISOString().split("T")[0],
+    closingDate: "",
     probability: "60%",
-    assignedRep: "Sarah Jenkins",
   });
 
   useEffect(() => {
+    /* eslint-disable react-hooks/set-state-in-effect */
     if (!isOpen) return;
 
     if (recordToEdit) {
@@ -74,10 +102,9 @@ export function AddEditCrmModal({ isOpen, onClose, recordToEdit, defaultTab = "C
           company: recordToEdit.company || "",
           email: recordToEdit.email || "",
           phone: recordToEdit.phone || "",
-          source: recordToEdit.source || "Direct Outreach",
-          estimatedValue: String(recordToEdit.numericValue || recordToEdit.estimatedValue || "0").replace(/[^0-9.]/g, ""),
           stage: recordToEdit.stage || "New",
-          assignedRep: recordToEdit.assignedRep || "Sarah Jenkins",
+          source: recordToEdit.source || "Inbound Web Inquiry",
+          estimatedValue: String(recordToEdit.numericValue || recordToEdit.estimatedValue || "0").replace(/[^0-9.]/g, ""),
           score: String(recordToEdit.score || 75),
           notes: recordToEdit.notes || "",
         });
@@ -90,7 +117,6 @@ export function AddEditCrmModal({ isOpen, onClose, recordToEdit, defaultTab = "C
           email: recordToEdit.email || "",
           phone: recordToEdit.phone || "",
           preferredMethod: recordToEdit.preferredMethod || "Email",
-          assignedRep: recordToEdit.assignedRep || "Sarah Jenkins",
           notes: recordToEdit.notes || "",
         });
       } else if (recordToEdit.title) {
@@ -103,7 +129,6 @@ export function AddEditCrmModal({ isOpen, onClose, recordToEdit, defaultTab = "C
           stage: recordToEdit.stage || "Discovery",
           closingDate: recordToEdit.closingDate || "",
           probability: recordToEdit.probability || "50%",
-          assignedRep: recordToEdit.assignedRep || "Sarah Jenkins",
         });
       } else {
         setRecordType(recordToEdit.type || "Customer");
@@ -112,12 +137,14 @@ export function AddEditCrmModal({ isOpen, onClose, recordToEdit, defaultTab = "C
           company: recordToEdit.company || "",
           email: recordToEdit.email || "",
           phone: recordToEdit.phone || "",
+          stage: recordToEdit.stage || "New",
+          source: recordToEdit.source || "Inbound Web Inquiry",
           gst: recordToEdit.gst || "",
           category: recordToEdit.category || "Logistics",
           status: recordToEdit.status || "Active",
           outstanding: recordToEdit.outstanding || "₹0.00",
           creditLimit: recordToEdit.creditLimit || "₹5,00,000.00",
-          assignedRep: recordToEdit.assignedRep || "Sarah Jenkins",
+
           billingAddress: recordToEdit.billingAddress || "",
           shippingAddress: recordToEdit.shippingAddress || "",
           notes: recordToEdit.notes || "",
@@ -137,12 +164,13 @@ export function AddEditCrmModal({ isOpen, onClose, recordToEdit, defaultTab = "C
         company: "",
         email: "",
         phone: "",
+        stage: "New",
+        source: "Inbound Web Inquiry",
         gst: "",
         category: "Logistics",
         status: "Active",
         outstanding: "0",
         creditLimit: "500000",
-        assignedRep: "Sarah Jenkins",
         billingAddress: "",
         shippingAddress: "",
         notes: "",
@@ -153,10 +181,9 @@ export function AddEditCrmModal({ isOpen, onClose, recordToEdit, defaultTab = "C
         company: "",
         email: "",
         phone: "",
-        source: "Direct Outreach",
-        estimatedValue: "350000",
         stage: "New",
-        assignedRep: "Sarah Jenkins",
+        source: "Inbound Web Inquiry",
+        estimatedValue: "350000",
         score: "75",
         notes: "",
       });
@@ -168,7 +195,6 @@ export function AddEditCrmModal({ isOpen, onClose, recordToEdit, defaultTab = "C
         email: "",
         phone: "",
         preferredMethod: "Email",
-        assignedRep: "Sarah Jenkins",
         notes: "",
       });
 
@@ -180,7 +206,6 @@ export function AddEditCrmModal({ isOpen, onClose, recordToEdit, defaultTab = "C
         stage: "Discovery",
         closingDate: new Date(Date.now() + 30 * 86400000).toISOString().split("T")[0],
         probability: "60%",
-        assignedRep: "Sarah Jenkins",
       });
     }
   }, [isOpen, recordToEdit, defaultTab]);
@@ -189,7 +214,6 @@ export function AddEditCrmModal({ isOpen, onClose, recordToEdit, defaultTab = "C
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    const timestampId = recordToEdit?.id || `${recordType.toLowerCase()}-${Date.now()}`;
 
     if (recordType === "Customer" || recordType === "Vendor") {
       if (!customerForm.name.trim() || !customerForm.company.trim()) {
@@ -197,90 +221,105 @@ export function AddEditCrmModal({ isOpen, onClose, recordToEdit, defaultTab = "C
         return;
       }
       const numVal = parseFloat(String(customerForm.outstanding).replace(/[^0-9.]/g, "")) || 0;
-      saveCrmCustomer({
-        id: timestampId,
+      const payload = {
+        name: customerForm.name.trim(),
+        company: customerForm.company.trim(),
+        email: customerForm.email.trim(),
+        phone: customerForm.phone.trim(),
+        stage: customerForm.stage || "New",
+        source: customerForm.source || "Inbound Web Inquiry",
         type: recordType,
-        name: customerForm.name,
-        company: customerForm.company,
-        email: customerForm.email,
-        phone: customerForm.phone,
         gst: customerForm.gst,
         category: customerForm.category,
-        status: customerForm.status,
+        status: customerForm.status || "Active",
         outstanding: `₹${numVal.toLocaleString("en-IN")}.00`,
         numericOutstanding: numVal,
         creditLimit: customerForm.creditLimit,
-        assignedRep: customerForm.assignedRep,
+        numericCreditLimit: parseFloat(String(customerForm.creditLimit).replace(/[^0-9.]/g, "")) || 500000,
         billingAddress: customerForm.billingAddress,
         shippingAddress: customerForm.shippingAddress,
         notes: customerForm.notes,
         createdAt: recordToEdit?.createdAt || new Date().toISOString().split("T")[0],
-      });
-      toast.success(`${recordType} ${customerForm.name} saved successfully!`);
+      };
+
+      if (recordToEdit?.id) {
+        updateCustomerMutation.mutate({ id: recordToEdit.id, data: payload }, { onSuccess: () => onClose() });
+      } else {
+        createCustomerMutation.mutate(payload, { onSuccess: () => onClose() });
+      }
     } else if (recordType === "Lead") {
       if (!leadForm.name.trim() || !leadForm.company.trim()) {
         toast.error("Please enter Lead Name and Company.");
         return;
       }
-      const numVal = parseFloat(leadForm.estimatedValue) || 0;
-      saveLead({
-        id: timestampId,
-        name: leadForm.name,
-        company: leadForm.company,
-        email: leadForm.email,
-        phone: leadForm.phone,
-        source: leadForm.source,
-        estimatedValue: `₹${numVal.toLocaleString("en-IN")}.00`,
+      const numVal = parseFloat(String(leadForm.estimatedValue).replace(/[^0-9.]/g, "")) || 0;
+      const payload = {
+        name: leadForm.name.trim(),
+        company: leadForm.company.trim(),
+        email: leadForm.email.trim(),
+        phone: leadForm.phone.trim(),
+        stage: leadForm.stage || "New",
+        source: leadForm.source || "Inbound Web Inquiry",
         numericValue: numVal,
-        stage: leadForm.stage,
-        assignedRep: leadForm.assignedRep,
+        estimatedValue: numVal,
         score: parseInt(leadForm.score) || 75,
         notes: leadForm.notes,
         createdAt: recordToEdit?.createdAt || new Date().toISOString().split("T")[0],
-      });
-      toast.success(`Lead ${leadForm.name} saved successfully!`);
+      };
+
+      if (recordToEdit?.id) {
+        updateLeadMutation.mutate({ id: recordToEdit.id, data: payload }, { onSuccess: () => onClose() });
+      } else {
+        createLeadMutation.mutate(payload, { onSuccess: () => onClose() });
+      }
     } else if (recordType === "Contact") {
       if (!contactForm.name.trim()) {
         toast.error("Please enter Contact Name.");
         return;
       }
-      saveContact({
-        id: timestampId,
+      const payload = {
         name: contactForm.name,
         role: contactForm.role,
         company: contactForm.company,
         email: contactForm.email,
         phone: contactForm.phone,
         preferredMethod: contactForm.preferredMethod,
-        assignedRep: contactForm.assignedRep,
         notes: contactForm.notes,
-      });
-      toast.success(`Contact ${contactForm.name} saved successfully!`);
+      };
+
+      if (recordToEdit?.id) {
+        updateContactMutation.mutate({ id: recordToEdit.id, data: payload }, { onSuccess: () => onClose() });
+      } else {
+        createContactMutation.mutate(payload, { onSuccess: () => onClose() });
+      }
     } else if (recordType === "Deal") {
       if (!dealForm.title.trim() || !dealForm.company.trim()) {
         toast.error("Please enter Deal Title and Company.");
         return;
       }
       const numVal = parseFloat(dealForm.value) || 0;
-      saveDeal({
-        id: timestampId,
+      const payload = {
         title: dealForm.title,
         company: dealForm.company,
         customer: dealForm.customer || dealForm.company,
-        value: `₹${numVal.toLocaleString("en-IN")}.00`,
-        numericValue: numVal,
+        customerName: dealForm.customer || dealForm.company,
+        value: numVal,
         stage: dealForm.stage,
+        expectedCloseDate: dealForm.closingDate,
         closingDate: dealForm.closingDate,
         probability: dealForm.probability,
-        assignedRep: dealForm.assignedRep,
-      });
-      toast.success(`Deal "${dealForm.title}" saved successfully!`);
-    }
+      };
 
-    onClose();
+      if (recordToEdit?.id) {
+        updateDealMutation.mutate({ id: recordToEdit.id, data: payload }, { onSuccess: () => onClose() });
+      } else {
+        createDealMutation.mutate(payload, { onSuccess: () => onClose() });
+      }
+    }
   };
 
-  const types = ["Customer", "Vendor", "Lead", "Contact", "Deal"];
+  // Deals & Opportunities temporarily commented out per requirement
+  const types = ["Customer", "Vendor", "Lead", "Contact"/*, "Deal"*/];
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-3 sm:p-6 animate-in fade-in duration-150 overflow-y-auto">
@@ -296,7 +335,7 @@ export function AddEditCrmModal({ isOpen, onClose, recordToEdit, defaultTab = "C
               {recordToEdit ? `Edit ${recordType}` : `Add New CRM Record`}
             </h3>
             <p className="text-xs text-slate-500 dark:text-slate-400">
-              Manage accounts, leads, contacts, and sales opportunities
+              Manage accounts, leads, and contacts
             </p>
           </div>
           <button
@@ -417,6 +456,42 @@ export function AddEditCrmModal({ isOpen, onClose, recordToEdit, defaultTab = "C
 
                 <div>
                   <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    Stage
+                  </label>
+                  <select
+                    value={customerForm.stage}
+                    onChange={(e) => setCustomerForm({ ...customerForm, stage: e.target.value, status: e.target.value === "Lost" || e.target.value === "Inactive" ? "Inactive" : "Active" })}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-800/50 text-xs font-bold text-slate-900 dark:text-white"
+                  >
+                    <option value="New">New</option>
+                    <option value="Contacted">Contacted</option>
+                    <option value="Qualified">Qualified</option>
+                    <option value="Proposal">Proposal</option>
+                    <option value="Won">Closed Won / Active</option>
+                    <option value="Lost">Closed Lost / Inactive</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    Acquisition Source
+                  </label>
+                  <select
+                    value={customerForm.source}
+                    onChange={(e) => setCustomerForm({ ...customerForm, source: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-800/50 text-xs font-bold text-slate-900 dark:text-white"
+                  >
+                    <option value="Inbound Web Inquiry">Inbound Web Inquiry</option>
+                    <option value="Direct Outreach">Direct Outreach</option>
+                    <option value="Referral">Referral</option>
+                    <option value="Trade Show">Trade Show</option>
+                    <option value="Organic Search">Organic Search</option>
+                    <option value="Existing Client">Existing Client</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
                     Account Status
                   </label>
                   <select
@@ -427,22 +502,6 @@ export function AddEditCrmModal({ isOpen, onClose, recordToEdit, defaultTab = "C
                     <option value="Active">Active</option>
                     <option value="Inactive">Inactive</option>
                     <option value="Archived">Archived</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                    Assigned Account Rep
-                  </label>
-                  <select
-                    value={customerForm.assignedRep}
-                    onChange={(e) => setCustomerForm({ ...customerForm, assignedRep: e.target.value })}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-800/50 text-xs font-bold text-slate-900 dark:text-white"
-                  >
-                    <option value="Sarah Jenkins">Sarah Jenkins (Key Accounts)</option>
-                    <option value="Michael Chen">Michael Chen (Mid-Market)</option>
-                    <option value="Alex Rivera">Alex Rivera (SMB Sales)</option>
-                    <option value="David Kim">David Kim (Enterprise)</option>
                   </select>
                 </div>
               </div>
@@ -627,8 +686,8 @@ export function AddEditCrmModal({ isOpen, onClose, recordToEdit, defaultTab = "C
             </div>
           )}
 
-          {/* DEAL FORM */}
-          {recordType === "Deal" && (
+          {/* DEAL FORM (Commented out per requirement) */}
+          {/* {recordType === "Deal" && (
             <div className="space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
@@ -690,7 +749,7 @@ export function AddEditCrmModal({ isOpen, onClose, recordToEdit, defaultTab = "C
                 </div>
               </div>
             </div>
-          )}
+          )} */}
 
           {/* Footer Controls */}
           <div className="flex items-center justify-between pt-4 border-t border-slate-100 dark:border-slate-800 shrink-0">
@@ -703,10 +762,11 @@ export function AddEditCrmModal({ isOpen, onClose, recordToEdit, defaultTab = "C
             </button>
             <button
               type="submit"
-              className="flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-blue-600 text-white text-xs font-extrabold hover:bg-blue-700 shadow-md shadow-blue-600/25 transition active:scale-95"
+              disabled={isSubmitting}
+              className="flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-blue-600 disabled:opacity-50 text-white text-xs font-extrabold hover:bg-blue-700 shadow-md shadow-blue-600/25 transition active:scale-95"
             >
               <Check size={16} className="stroke-[3]" />
-              <span>Save {recordType}</span>
+              <span>{isSubmitting ? "Saving..." : `Save ${recordType}`}</span>
             </button>
           </div>
         </form>

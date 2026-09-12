@@ -3,5 +3,7 @@
     "paths": {
       "@/*": ["./src/*"]
     }
-  }
+  },
+  "include": ["src/**/*", "next.config.mjs", "postcss.config.mjs", "eslint.config.mjs"],
+  "exclude": ["node_modules", ".next", ".agents"]
 }

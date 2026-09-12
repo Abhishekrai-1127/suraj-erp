@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import SalesTabNav from "@/components/sales/sales-tab-nav";
 // import Drawer from "@/components/ui/drawer";
 // import SalesDrawerContent from "@/components/sales/sales-drawer-content";
@@ -8,75 +8,22 @@ import QuickAddModal from "@/components/sales/quick-add-modal";
 import InvoiceModal from "@/components/invoice/invoice-modal";
 import InvoiceDetailsModal from "@/components/invoice/invoice-details-modal";
 import EditDocumentModal from "@/components/sales/edit-document-modal";
-import { Filter, ArrowUpDown, Plus, Search, X, FileText, Printer, ExternalLink, MoreVertical, Eye, Download, Truck, Edit3 } from "lucide-react";
+import { Filter, ArrowUpDown, Plus, Search, X, FileText, Printer, ExternalLink, MoreVertical, Eye, Download, Truck, Edit3, Trash2 } from "lucide-react";
 import { toast } from "sonner";
-import { getStoredDocuments, getDeletedDocumentIds } from "@/lib/erp-storage";
+import { getStoredDocuments, getDeletedDocumentIds, deleteStoredDocument } from "@/lib/erp-storage";
+import { useSalesDocuments } from "@/hooks/use-sales-store";
+import { formatCurrency, parseAmount } from "@/lib/formatters";
+import { normalizeSalesDocStatus } from "@/services/sales-api";
 import { initialInvoiceData } from "@/lib/invoiceData";
 import { openInvoiceInNewTab, downloadInvoicePDF } from "@/lib/printInvoice";
 import { downloadChallanPDF } from "@/lib/printChallan";
 
-const initialInvoices = [
-  {
-    id: "INV-2024-001",
-    customer: "Acme Corp Ltd",
-    customerId: "AC-442",
-    date: "May 12, 2024",
-    dueDate: "Jun 12, 2024",
-    amount: "₹12,450.00",
-    balance: "₹12,450.00",
-    isOverdue: true,
-    status: "Overdue",
-  },
-  {
-    id: "INV-2024-002",
-    customer: "Global Logistics SA",
-    customerId: "GL-981",
-    date: "May 10, 2024",
-    dueDate: "Jun 10, 2024",
-    amount: "₹8,200.00",
-    balance: "₹0.00",
-    isOverdue: false,
-    status: "Paid",
-  },
-  {
-    id: "INV-2024-003",
-    customer: "Starlight Ventures",
-    customerId: "SV-112",
-    date: "May 08, 2024",
-    dueDate: "May 22, 2024",
-    amount: "₹4,500.00",
-    balance: "₹2,000.00",
-    isPartial: true,
-    status: "Partial",
-  },
-  {
-    id: "INV-2024-004",
-    customer: "Nexus Systems",
-    customerId: "NX-554",
-    date: "May 05, 2024",
-    dueDate: "Jun 05, 2024",
-    amount: "₹15,700.00",
-    balance: "₹15,700.00",
-    isOverdue: true,
-    status: "Overdue",
-  },
-  {
-    id: "INV-2024-005",
-    customer: "Urban Sprawl Co.",
-    customerId: "US-881",
-    date: "May 02, 2024",
-    dueDate: "Jun 02, 2024",
-    amount: "₹2,400.00",
-    balance: "₹0.00",
-    isOverdue: false,
-    status: "Paid",
-  },
-];
+const initialInvoices = [];
 
 export default function InvoicesPage() {
   // const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   // const [drawerPosition, setDrawerPosition] = useState("right");
-  const [selectedInvoice, setSelectedInvoice] = useState(initialInvoices[0]);
+  const [selectedInvoice, setSelectedInvoice] = useState(null);
   const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
   const [editingInvoice, setEditingInvoice] = useState(null);
   const [viewingDetailsInvoice, setViewingDetailsInvoice] = useState(null);
@@ -105,13 +52,13 @@ export default function InvoicesPage() {
         docs.map((d) => ({
           id: d.refNo,
           customer: d.customer,
-          customerId: d.customerId || "INV",
+          customerId: d.customerId || "-",
           date: d.date,
-          dueDate: d.dueDate || "Net 30",
+          dueDate: d.dueDate || "-",
           amount: d.amount,
           balance: d.balance || d.amount,
           isOverdue: false,
-          status: d.status || "IN PROGRESS",
+          status: normalizeSalesDocStatus(d.status, "invoice") || "UNPAID",
           items: d.items,
         }))
       );
@@ -130,13 +77,93 @@ export default function InvoicesPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
 
+  const { data: rawApiInvoices = [] } = useSalesDocuments({ type: "invoice" });
   const deletedIds = getDeletedDocumentIds();
-  const allInvoices = [...storedInvoices, ...initialInvoices].filter(
-    (inv) => !deletedIds.includes(inv.id) && !deletedIds.includes(inv.refNo)
-  );
+
+  const allInvoices = useMemo(() => {
+    const apiDocs = Array.isArray(rawApiInvoices) ? rawApiInvoices : [];
+    const map = new Map();
+
+    storedInvoices.forEach((inv) => {
+      const key = inv.id || inv.refNo;
+      if (key && !deletedIds.includes(key)) {
+        map.set(key, inv);
+      }
+    });
+
+    apiDocs.forEach((d) => {
+      const key = d.refNo || d.id;
+      if (key && !deletedIds.includes(key)) {
+        map.set(key, {
+          id: d.refNo || d.id,
+          customer: d.customer,
+          customerId: d.customerId || "-",
+          date: d.date || "-",
+          dueDate: d.dueDate || d.validUntil || "-",
+          amount: `₹${Number(d.grandTotal || 0).toLocaleString("en-IN", {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+          })}`,
+          balance: `₹${Number(d.grandTotal || 0).toLocaleString("en-IN", {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+          })}`,
+          numericAmount: Number(d.grandTotal || 0),
+          isOverdue: false,
+          status: normalizeSalesDocStatus(d.status, "invoice") || "UNPAID",
+          items: d.items || [],
+        });
+      }
+    });
+
+    return Array.from(map.values());
+  }, [storedInvoices, rawApiInvoices, deletedIds]);
+
+  // Compute live dynamic invoice metrics instead of static hardcoded numbers
+  const invoiceStats = useMemo(() => {
+    let totalOutstanding = 0;
+    let overdueCount = 0;
+    let paidLast30Days = 0;
+
+    const now = new Date();
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    allInvoices.forEach((inv) => {
+      const rawAmt = parseAmount(inv.amount || inv.numericAmount);
+      const statusLower = (inv.status || "").toLowerCase();
+
+      if (statusLower === "paid" || statusLower === "completed") {
+        const invDate = inv.date && inv.date !== "-" ? new Date(inv.date) : null;
+        if (!invDate || isNaN(invDate.getTime()) || invDate >= thirtyDaysAgo) {
+          paidLast30Days += rawAmt;
+        }
+      } else if (statusLower === "overdue") {
+        overdueCount += 1;
+        totalOutstanding += rawAmt;
+      } else {
+        totalOutstanding += rawAmt;
+        if (inv.dueDate && inv.dueDate !== "-") {
+          const dDate = new Date(inv.dueDate);
+          if (!isNaN(dDate.getTime()) && dDate < now) {
+            overdueCount += 1;
+          }
+        }
+      }
+    });
+
+    return {
+      totalOutstanding,
+      overdueCount,
+      paidLast30Days,
+    };
+  }, [allInvoices]);
 
   const filteredInvoices = allInvoices.filter((inv) => {
-    if (statusFilter !== "All" && inv.status !== statusFilter) return false;
+    if (statusFilter !== "All") {
+      const invStatus = normalizeSalesDocStatus(inv.status, "invoice");
+      if (invStatus !== statusFilter) return false;
+    }
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       return (
@@ -187,21 +214,24 @@ export default function InvoicesPage() {
         <div className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 shadow-xs flex flex-col justify-between">
           <span className="text-xs font-bold text-slate-500 dark:text-slate-400">Total Outstanding</span>
           <div className="flex items-baseline gap-2 mt-1">
-            <span className="text-2xl font-black text-slate-900 dark:text-white">₹124,500.00</span>
-            <span className="text-xs font-bold text-rose-600 flex items-center">↑ 12%</span>
+            <span className="text-2xl font-black text-slate-900 dark:text-white">
+              {formatCurrency(invoiceStats.totalOutstanding, 2)}
+            </span>
           </div>
         </div>
 
         <div className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 shadow-xs flex flex-col justify-between">
           <span className="text-xs font-bold text-slate-500 dark:text-slate-400">Overdue Invoices</span>
           <div className="text-2xl font-black text-slate-900 dark:text-white mt-1">
-            14 <span className="text-xs font-semibold text-slate-400">Items</span>
+            {invoiceStats.overdueCount} <span className="text-xs font-semibold text-slate-400">Items</span>
           </div>
         </div>
 
         <div className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 shadow-xs flex flex-col justify-between">
           <span className="text-xs font-bold text-slate-500 dark:text-slate-400">Paid Last 30 Days</span>
-          <div className="text-2xl font-black text-blue-600 dark:text-blue-400 mt-1">₹89,230.50</div>
+          <div className="text-2xl font-black text-blue-600 dark:text-blue-400 mt-1">
+            {formatCurrency(invoiceStats.paidLast30Days, 2)}
+          </div>
         </div>
       </div>
 
@@ -230,7 +260,7 @@ export default function InvoicesPage() {
           </div>
 
           <div className="text-xs font-bold text-slate-500">
-            Showing {filteredInvoices.length} of {initialInvoices.length} Invoices
+            Showing {filteredInvoices.length} of {allInvoices.length} Invoices
           </div>
         </div>
 
@@ -265,12 +295,12 @@ export default function InvoicesPage() {
                 />
               </div>
 
-              <div className="flex items-center gap-1">
-                {["All", "Overdue", "Paid", "Partial"].map((st) => (
+              <div className="flex items-center gap-1 overflow-x-auto">
+                {["All", "UNPAID", "PAID", "DRAFT", "CANCELLED"].map((st) => (
                   <button
                     key={st}
                     onClick={() => setStatusFilter(st)}
-                    className={`px-3 py-1 rounded-lg text-xs font-bold transition ${
+                    className={`px-3 py-1 rounded-lg text-xs font-bold transition whitespace-nowrap ${
                       statusFilter === st
                         ? "bg-blue-600 text-white"
                         : "bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100"
@@ -294,110 +324,125 @@ export default function InvoicesPage() {
                 <th className="py-3 px-4">DUE DATE</th>
                 <th className="py-3 px-4">AMOUNT</th>
                 <th className="py-3 px-4">BALANCE</th>
+                <th className="py-3 px-4">STATUS</th>
                 <th className="py-3 px-4 text-right">ACTIONS</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-xs font-semibold">
-              {filteredInvoices.map((row) => (
-                <tr
-                  key={row.id}
-                  onClick={() => handleRowClick(row)}
-                  className={`hover:bg-blue-50/40 dark:hover:bg-slate-800/50 transition-colors ${
-                    selectedInvoice?.id === row.id ? "bg-blue-50/30 dark:bg-blue-950/30" : ""
-                  }`}
-                >
-                  <td className="py-3.5 px-4 text-blue-600 dark:text-blue-400 font-extrabold">
-                    {row.id}
-                  </td>
-                  <td className="py-3.5 px-4">
-                    <div>
-                      <div className="text-slate-900 dark:text-white font-bold">{row.customer}</div>
-                      <div className="text-[11px] text-slate-400 font-medium">Customer ID: {row.customerId}</div>
-                    </div>
-                  </td>
-                  <td className="py-3.5 px-4 text-slate-600 dark:text-slate-400">{row.date}</td>
-                  <td className="py-3.5 px-4 text-slate-600 dark:text-slate-400">{row.dueDate}</td>
-                  <td className="py-3.5 px-4 text-slate-900 dark:text-white font-black">{row.amount}</td>
-                  <td className="py-3.5 px-4">
-                    <span
-                      className={`font-black ${
-                        row.isOverdue
-                          ? "text-rose-600"
-                          : row.isPartial
-                          ? "text-amber-600"
-                          : "text-slate-600 dark:text-slate-400"
-                      }`}
-                    >
-                      {row.balance}
-                    </span>
-                  </td>
-                  <td className="py-3.5 px-4 text-right">
-                    <div className="relative inline-block text-left" onClick={(e) => e.stopPropagation()}>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setActiveMenuId(activeMenuId === row.id ? null : row.id);
-                        }}
-                        className="p-1.5 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-100 dark:text-slate-400 dark:hover:text-white dark:hover:bg-slate-800 transition"
-                        title="Actions"
+              {filteredInvoices.length > 0 ? (
+                filteredInvoices.map((row) => (
+                  <tr
+                    key={row.id}
+                    onClick={() => handleRowClick(row)}
+                    className={`hover:bg-blue-50/40 dark:hover:bg-slate-800/50 transition-colors ${
+                      selectedInvoice?.id === row.id ? "bg-blue-50/30 dark:bg-blue-950/30" : ""
+                    }`}
+                  >
+                    <td className="py-3.5 px-4 text-blue-600 dark:text-blue-400 font-extrabold">
+                      {row.id}
+                    </td>
+                    <td className="py-3.5 px-4">
+                      <div>
+                        <div className="text-slate-900 dark:text-white font-bold">{row.customer}</div>
+                        <div className="text-[11px] text-slate-400 font-medium">Customer ID: {row.customerId}</div>
+                      </div>
+                    </td>
+                    <td className="py-3.5 px-4 text-slate-600 dark:text-slate-400">{row.date}</td>
+                    <td className="py-3.5 px-4 text-slate-600 dark:text-slate-400">{row.dueDate}</td>
+                    <td className="py-3.5 px-4 text-slate-900 dark:text-white font-black">{row.amount}</td>
+                    <td className="py-3.5 px-4">
+                      <span
+                        className={`font-black ${
+                          row.isOverdue
+                            ? "text-rose-600"
+                            : row.isPartial
+                            ? "text-amber-600"
+                            : "text-slate-600 dark:text-slate-400"
+                        }`}
                       >
-                        <MoreVertical size={16} />
-                      </button>
+                        {row.balance}
+                      </span>
+                    </td>
+                    <td className="py-3.5 px-4">
+                      <span
+                        className={`px-2.5 py-1 rounded-md text-[10px] font-black ${
+                          row.status === "PAID"
+                            ? "bg-emerald-100/80 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400"
+                            : row.status === "UNPAID"
+                            ? "bg-amber-100/80 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400"
+                            : row.status === "CANCELLED"
+                            ? "bg-rose-100/80 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400"
+                            : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400"
+                        }`}
+                      >
+                        {row.status}
+                      </span>
+                    </td>
+                    <td className="py-3.5 px-4 text-right">
+                      <div className="relative inline-block text-left" onClick={(e) => e.stopPropagation()}>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setActiveMenuId(activeMenuId === row.id ? null : row.id);
+                          }}
+                          className="p-1.5 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-100 dark:text-slate-400 dark:hover:text-white dark:hover:bg-slate-800 transition"
+                          title="Actions"
+                        >
+                          <MoreVertical size={16} />
+                        </button>
 
-                      {activeMenuId === row.id && (
-                        <div className="absolute right-0 mt-1 w-48 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xl z-30 py-1.5 font-semibold text-xs animate-in fade-in zoom-in-95 duration-100">
-                          <button
-                            onClick={() => {
-                              setActiveMenuId(null);
-                              handleRowClick(row);
-                            }}
-                            className="w-full text-left px-3.5 py-2 flex items-center gap-2.5 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 transition"
-                          >
-                            <Eye size={14} className="text-blue-500" />
-                            <span>View Details</span>
-                          </button>
-                          <button
-                            onClick={() => {
-                              setActiveMenuId(null);
-                              openInvoiceInNewTab(row);
-                            }}
-                            className="w-full text-left px-3.5 py-2 flex items-center gap-2.5 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 transition"
-                          >
-                            <Printer size={14} className="text-emerald-500" />
-                            <span>Print Invoice</span>
-                          </button>
-                          <button
-                            onClick={async () => {
-                              setActiveMenuId(null);
-                              const toastId = toast.loading(`Generating PDF for ${row.id}...`);
-                              try {
-                                await downloadInvoicePDF(row);
-                                toast.success(`Downloaded ${row.id}.pdf`, { id: toastId });
-                              } catch (e) {
-                                toast.error(`Failed to generate PDF`, { id: toastId });
-                              }
-                            }}
-                            className="w-full text-left px-3.5 py-2 flex items-center gap-2.5 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 transition"
-                          >
-                            <Download size={14} className="text-purple-500" />
-                            <span>Download PDF</span>
-                          </button>
-                          <button
-                            onClick={() => {
-                              setActiveMenuId(null);
-                              setEditingInvoice(row);
-                            }}
-                            className="w-full text-left px-3.5 py-2 flex items-center gap-2.5 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 transition border-t border-slate-100 dark:border-slate-800"
-                          >
-                            <Edit3 size={14} className="text-blue-600" />
-                            <span>Edit Invoice</span>
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  </td>
+                        {activeMenuId === row.id && (
+                          <div className="absolute right-0 mt-1 w-48 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xl py-1.5 z-50 animate-in fade-in zoom-in-95 duration-100">
+                            <button
+                              onClick={async () => {
+                                setActiveMenuId(null);
+                                const toastId = toast.loading(`Generating PDF for ${row.id}...`);
+                                try {
+                                  await downloadInvoicePDF(row);
+                                  toast.success(`Downloaded ${row.id}.pdf`, { id: toastId });
+                                } catch (e) {
+                                  toast.error(`Failed to generate PDF`, { id: toastId });
+                                }
+                              }}
+                              className="w-full text-left px-3.5 py-2 flex items-center gap-2.5 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 transition"
+                            >
+                              <Download size={14} className="text-purple-500" />
+                              <span>Download PDF</span>
+                            </button>
+                            <button
+                              onClick={() => {
+                                setActiveMenuId(null);
+                                setEditingInvoice(row);
+                              }}
+                              className="w-full text-left px-3.5 py-2 flex items-center gap-2.5 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 transition border-t border-slate-100 dark:border-slate-800"
+                            >
+                              <Edit3 size={14} className="text-blue-600" />
+                              <span>Edit Invoice</span>
+                            </button>
+                            <button
+                              onClick={() => {
+                                setActiveMenuId(null);
+                                deleteStoredDocument(row.id);
+                                toast.success(`Deleted Invoice ${row.id}`);
+                              }}
+                              className="w-full text-left px-3.5 py-2 flex items-center gap-2.5 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-rose-600 dark:text-rose-400 transition border-t border-slate-100 dark:border-slate-800"
+                            >
+                              <Trash2 size={14} />
+                              <span>Delete Invoice</span>
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </td>
                 </tr>
-              ))}
+              ))
+            ) : (
+              <tr>
+                <td colSpan={8} className="text-center py-12 text-slate-400 dark:text-slate-500 font-medium">
+                  No invoices found. Click &quot;+ Invoice&quot; to create one.
+                </td>
+              </tr>
+            )}
             </tbody>
           </table>
         </div>

@@ -34,9 +34,7 @@ export default function TallyChallanPreview({ data }) {
     }
   };
 
-  const processedItems = items.length > 0 ? items : [
-    { description: "10 H.P Blower with 1440 RPM Motor.", qty: 1, unit: "Nos", note: "Motor For Party" }
-  ];
+  const processedItems = items.length > 0 ? items : [];
 
   return (
     <div
@@ -127,7 +125,7 @@ export default function TallyChallanPreview({ data }) {
           </div>
         )}
         <div style={{ display: "flex", alignItems: "baseline", marginTop: "6px" }}>
-          <span style={{ fontWeight: "bold" }}>Party's Order No. & Date:</span>
+          <span style={{ fontWeight: "bold" }}>Party&apos;s Order No. & Date:</span>
           <span
             style={{
               flex: 1,
@@ -176,7 +174,7 @@ export default function TallyChallanPreview({ data }) {
                 {idx + 1}.
               </td>
               <td style={{ borderRight: "1px solid #000000", padding: "8px", textAlign: "center", fontWeight: "bold" }}>
-                {item.qty} {item.unit || "Nos"}
+                {item.qty} {item.unit || ""}
               </td>
               <td style={{ padding: "8px 12px" }}>
                 <div style={{ fontWeight: "bold", fontSize: "12px", color: "#000000" }}>{item.description}</div>
@@ -215,7 +213,7 @@ export default function TallyChallanPreview({ data }) {
             Received the goods in good condition.
           </div>
           <div style={{ borderTop: "1px solid #000000", width: "180px", textAlign: "center", paddingTop: "4px", fontWeight: "bold" }}>
-            Customer's Signature
+            Customer&apos;s Signature
           </div>
         </div>
 

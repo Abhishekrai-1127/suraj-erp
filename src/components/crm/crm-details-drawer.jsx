@@ -19,13 +19,12 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import {
-  getStoredCrmActivities,
-  addCrmActivity,
-  deleteCrmCustomer,
-  deleteLead,
-  deleteContact,
-  deleteDeal,
-} from "@/lib/crm-storage";
+  useCrmActivities,
+  useLogActivityMutation,
+  useDeleteCustomerMutation,
+  useDeleteLeadMutation,
+  useDeleteDealMutation,
+} from "@/hooks/use-crm-store";
 
 export function CrmDetailsDrawer({ isOpen, onClose, record, onConvertLead, onDeleteRecord }) {
   const [activeTab, setActiveTab] = useState("overview");
@@ -34,9 +33,16 @@ export function CrmDetailsDrawer({ isOpen, onClose, record, onConvertLead, onDel
   const [newLogType, setNewLogType] = useState("Call");
   const [isAddingLog, setIsAddingLog] = useState(false);
 
+  // TanStack Query Hooks & Mutations
+  const { data: rawActivities = [] } = useCrmActivities(record?.id);
+  const logActivityMutation = useLogActivityMutation();
+  const deleteCustomerMutation = useDeleteCustomerMutation();
+  const deleteLeadMutation = useDeleteLeadMutation();
+  const deleteDealMutation = useDeleteDealMutation();
+
   if (!record) return null;
 
-  const activities = getStoredCrmActivities(record.id);
+  const activities = Array.isArray(rawActivities) ? rawActivities : [];
 
   const handleAddActivity = (e) => {
     e.preventDefault();
@@ -45,20 +51,23 @@ export function CrmDetailsDrawer({ isOpen, onClose, record, onConvertLead, onDel
       return;
     }
 
-    addCrmActivity({
-      id: `act-${Date.now()}`,
-      entityId: record.id,
-      type: newLogType,
-      title: newLogTitle,
-      description: newLogDesc || "Activity logged by user.",
-      author: record.assignedRep || "Sales Rep",
-      timestamp: `${new Date().toLocaleDateString("en-US", { month: "short", day: "2-digit" })} at ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`,
-    });
-
-    toast.success(`Logged ${newLogType} activity for ${record.name || record.company}`);
-    setNewLogTitle("");
-    setNewLogDesc("");
-    setIsAddingLog(false);
+    logActivityMutation.mutate(
+      {
+        entityId: record.id,
+        type: newLogType,
+        title: newLogTitle,
+        notes: newLogDesc || newLogTitle,
+        description: newLogDesc || "Activity logged by user.",
+        author: "User",
+      },
+      {
+        onSuccess: () => {
+          setNewLogTitle("");
+          setNewLogDesc("");
+          setIsAddingLog(false);
+        },
+      }
+    );
   };
 
   const handleDeleteEntity = () => {
@@ -66,12 +75,11 @@ export function CrmDetailsDrawer({ isOpen, onClose, record, onConvertLead, onDel
       onDeleteRecord(record);
     } else {
       if (record.stage) {
-        deleteLead(record.id);
-        deleteDeal(record.id);
+        deleteLeadMutation.mutate(record.id);
+        deleteDealMutation.mutate(record.id);
       } else {
-        deleteCrmCustomer(record.id);
+        deleteCustomerMutation.mutate(record.id);
       }
-      toast.success(`Deleted ${record.company || record.name || record.title}`);
     }
     onClose();
   };
@@ -199,13 +207,6 @@ export function CrmDetailsDrawer({ isOpen, onClose, record, onConvertLead, onDel
                 </div>
               )}
 
-              <div className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800">
-                <User size={16} className="text-slate-400 shrink-0" />
-                <div>
-                  <span className="text-slate-400 text-[10px] uppercase font-bold block">Assigned Sales Executive</span>
-                  <span className="font-bold text-slate-900 dark:text-white">{record.assignedRep || "Sarah Jenkins"}</span>
-                </div>
-              </div>
             </div>
 
             {record.notes && (

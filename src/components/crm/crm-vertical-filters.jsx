@@ -11,8 +11,6 @@ export function CrmVerticalFilters({
   onStatusFilterChange,
   categoryFilter,
   onCategoryFilterChange,
-  repFilter,
-  onRepFilterChange,
   sourceFilter,
   onSourceFilterChange,
   valueRangeFilter,
@@ -28,7 +26,6 @@ export function CrmVerticalFilters({
     typeFilter !== "All" ? 1 : 0,
     statusFilter !== "All" ? 1 : 0,
     categoryFilter !== "All" ? 1 : 0,
-    repFilter !== "All" ? 1 : 0,
     sourceFilter !== "All" ? 1 : 0,
     valueRangeFilter !== "All" ? 1 : 0,
   ].reduce((a, b) => a + b, 0);
@@ -137,24 +134,6 @@ export function CrmVerticalFilters({
             <option value="Raw Material Supplier">Raw Material Supplier</option>
             <option value="Consulting">Consulting Services</option>
             <option value="Tech Hardware">Tech & Hardware</option>
-          </select>
-        </div>
-
-        {/* 4. Assigned Representative */}
-        <div className="space-y-2">
-          <label className="text-[10px] font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">
-            Assigned Executive
-          </label>
-          <select
-            value={repFilter}
-            onChange={(e) => onRepFilterChange(e.target.value)}
-            className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-xs font-bold text-slate-900 dark:text-white"
-          >
-            <option value="All">All Executives</option>
-            <option value="Sarah Jenkins">Sarah Jenkins (Key Accounts)</option>
-            <option value="Michael Chen">Michael Chen (Mid-Market)</option>
-            <option value="Alex Rivera">Alex Rivera (SMB Sales)</option>
-            <option value="David Kim">David Kim (Enterprise)</option>
           </select>
         </div>
 

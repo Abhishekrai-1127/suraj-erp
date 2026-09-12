@@ -1,31 +1,36 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+
+// Deals & Opportunities temporarily commented out per project requirements
+export default function CRMDealsPage() {
+  const router = useRouter();
+
+  useEffect(() => {
+    router.replace("/crm");
+  }, [router]);
+
+  return null;
+}
+
+/*
+import React, { useState } from "react";
 import { CrmHeader } from "@/components/crm/crm-header";
 import { CustomersTable } from "@/components/crm/customers-table";
 import { LeadKanbanBoard } from "@/components/crm/lead-kanban-board";
 import { AddEditCrmModal } from "@/components/crm/add-edit-crm-modal";
 import { CrmDetailsDrawer } from "@/components/crm/crm-details-drawer";
-import { getStoredDeals } from "@/lib/crm-storage";
+import { useCrmDeals } from "@/hooks/use-crm-store";
 
-export default function CRMDealsPage() {
+export function OriginalCRMDealsPage() {
   const [viewMode, setViewMode] = useState("kanban");
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [editingRecord, setEditingRecord] = useState(null);
   const [selectedRecord, setSelectedRecord] = useState(null);
-  const [deals, setDeals] = useState([]);
 
-  const loadDeals = () => setDeals(getStoredDeals());
-
-  useEffect(() => {
-    loadDeals();
-    window.addEventListener("suraj_crm_updated", loadDeals);
-    window.addEventListener("storage", loadDeals);
-    return () => {
-      window.removeEventListener("suraj_crm_updated", loadDeals);
-      window.removeEventListener("storage", loadDeals);
-    };
-  }, []);
+  const { data: rawDeals = [] } = useCrmDeals();
+  const deals = Array.isArray(rawDeals) ? rawDeals : [];
 
   return (
     <div className="flex flex-col space-y-6 w-full pb-10">
@@ -77,3 +82,4 @@ export default function CRMDealsPage() {
     </div>
   );
 }
+*/

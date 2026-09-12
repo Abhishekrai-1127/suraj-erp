@@ -1,15 +1,45 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import SalesTabNav from "@/components/sales/sales-tab-nav";
 import Drawer from "@/components/ui/drawer";
 import SalesDrawerContent from "@/components/sales/sales-drawer-content";
 import QuickAddModal from "@/components/sales/quick-add-modal";
-import { Plus, RotateCcw, Filter } from "lucide-react";
+import { Plus, Filter } from "lucide-react";
+import { getStoredDocuments, getDeletedDocumentIds } from "@/lib/erp-storage";
 
 export default function ReturnsPage() {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
+  const [selectedReturn, setSelectedReturn] = useState(null);
+  const [returns, setReturns] = useState([]);
+
+  useEffect(() => {
+    const loadData = () => {
+      const deletedIds = getDeletedDocumentIds();
+      const docs = getStoredDocuments().filter(
+        (d) =>
+          (d.type === "return" || d.type === "credit-note") &&
+          !deletedIds.includes(d.id || d.refNo)
+      );
+      setReturns(
+        docs.map((d) => ({
+          id: d.refNo || d.id,
+          customer: d.customer,
+          date: d.date,
+          reason: d.reason || "Product Return / Credit",
+          amount: d.amount,
+        }))
+      );
+    };
+    loadData();
+    window.addEventListener("erp_document_created", loadData);
+    window.addEventListener("storage", loadData);
+    return () => {
+      window.removeEventListener("erp_document_created", loadData);
+      window.removeEventListener("storage", loadData);
+    };
+  }, []);
 
   return (
     <div className="space-y-6 pb-10">
@@ -37,15 +67,6 @@ export default function ReturnsPage() {
       <SalesTabNav />
 
       <div className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 p-6 shadow-xs space-y-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <button className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-800 text-xs font-bold">
-              <Filter size={14} />
-              <span>Filter</span>
-            </button>
-          </div>
-        </div>
-
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse text-xs font-semibold">
             <thead>
@@ -58,20 +79,47 @@ export default function ReturnsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-              <tr onClick={() => setIsDrawerOpen(true)} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 cursor-pointer">
-                <td className="py-3.5 px-4 text-rose-600 font-extrabold font-mono">RET-2024-009</td>
-                <td className="py-3.5 px-4 text-slate-900 dark:text-white font-bold">Acme Corp Ltd</td>
-                <td className="py-3.5 px-4 text-slate-600">May 11, 2024</td>
-                <td className="py-3.5 px-4 text-slate-700 dark:text-slate-300">Damaged in Transit</td>
-                <td className="py-3.5 px-4 text-rose-600 font-black">₹1,150.00</td>
-              </tr>
+              {returns.length > 0 ? (
+                returns.map((row) => (
+                  <tr
+                    key={row.id}
+                    onClick={() => {
+                      setSelectedReturn(row);
+                      setIsDrawerOpen(true);
+                    }}
+                    className="hover:bg-slate-50 dark:hover:bg-slate-800/40 cursor-pointer"
+                  >
+                    <td className="py-3.5 px-4 text-rose-600 font-extrabold font-mono">{row.id}</td>
+                    <td className="py-3.5 px-4 text-slate-900 dark:text-white font-bold">{row.customer}</td>
+                    <td className="py-3.5 px-4 text-slate-600">{row.date}</td>
+                    <td className="py-3.5 px-4 text-slate-700 dark:text-slate-300">{row.reason}</td>
+                    <td className="py-3.5 px-4 text-rose-600 font-black">{row.amount}</td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={5} className="text-center py-12 text-slate-400 dark:text-slate-500 font-medium text-xs">
+                    No sales returns or credit notes found.
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
       </div>
 
       <Drawer isOpen={isDrawerOpen} onClose={() => setIsDrawerOpen(false)} title="Sales Overview">
-        <SalesDrawerContent />
+        {selectedReturn ? (
+          <SalesDrawerContent
+            customerData={{
+              name: selectedReturn.customer,
+              type: "Customer Return",
+              initial: selectedReturn.customer?.charAt(0) || "C",
+              balance: selectedReturn.amount,
+              overdueDays: 0,
+            }}
+          />
+        ) : null}
       </Drawer>
       <QuickAddModal isOpen={isQuickAddOpen} onClose={() => setIsQuickAddOpen(false)} />
     </div>

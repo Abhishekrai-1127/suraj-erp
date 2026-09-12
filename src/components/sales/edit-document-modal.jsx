@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import { X, Save, Edit3, Trash2, Plus, Package } from "lucide-react";
 import { toast } from "sonner";
 import { updateStoredDocument, deleteStoredDocument } from "@/lib/erp-storage";
+import { salesApi, normalizeSalesDocStatus } from "@/services/sales-api";
 
 export default function EditDocumentModal({ isOpen, onClose, document: docData, onUpdated }) {
   const [form, setForm] = useState({
@@ -16,7 +17,6 @@ export default function EditDocumentModal({ isOpen, onClose, document: docData, 
     status: "",
     paymentMethod: "",
     partyOrderNo: "",
-    salesPerson: "",
     itemsCount: "",
     notes: "",
   });
@@ -24,6 +24,7 @@ export default function EditDocumentModal({ isOpen, onClose, document: docData, 
   const [items, setItems] = useState([]);
 
   useEffect(() => {
+    /* eslint-disable react-hooks/set-state-in-effect */
     if (docData) {
       setForm({
         id: docData.id || docData.refNo || "",
@@ -32,10 +33,9 @@ export default function EditDocumentModal({ isOpen, onClose, document: docData, 
         dueDate: docData.dueDate || docData.validUntil || "",
         amount: docData.amount || "",
         balance: docData.balance || "",
-        status: docData.status || "Completed",
+        status: normalizeSalesDocStatus(docData.status, docData.type) || "PENDING",
         paymentMethod: docData.paymentMethod || docData.method || "Bank Transfer",
         partyOrderNo: docData.partyOrderNo || docData.poNumber || "",
-        salesPerson: docData.salesPerson || "",
         itemsCount: docData.itemsCount || "",
         notes: docData.notes || "",
       });
@@ -45,9 +45,9 @@ export default function EditDocumentModal({ isOpen, onClose, document: docData, 
           docData.items.map((item) => ({
             description: item.description || item.name || "",
             qty: item.qty || item.quantity || 1,
-            unit: item.unit || "Nos",
+            unit: item.unit || "",
             listPrice: item.listPrice || item.rate || item.unitPrice || 0,
-            hsnSac: item.hsnSac || item.hsn || "84145930",
+            hsnSac: item.hsnSac || item.hsn || "",
             taxPercent: item.taxPercent || item.tax || 18,
           }))
         );
@@ -56,11 +56,11 @@ export default function EditDocumentModal({ isOpen, onClose, document: docData, 
           parseFloat(String(docData.amount || "0").replace(/[^0-9.]/g, "")) || 0;
         setItems([
           {
-            description: docData.description || "Industrial Machinery Equipment & Component",
+            description: docData.description || "",
             qty: 1,
-            unit: "Nos",
-            listPrice: parsedAmount > 0 ? Math.round(parsedAmount / 1.18) : 5000,
-            hsnSac: "84145930",
+            unit: "",
+            listPrice: parsedAmount > 0 ? Math.round(parsedAmount / 1.18) : 0,
+            hsnSac: "",
             taxPercent: 18,
           },
         ]);
@@ -98,9 +98,9 @@ export default function EditDocumentModal({ isOpen, onClose, document: docData, 
       {
         description: "",
         qty: 1,
-        unit: "Pcs",
+        unit: "",
         listPrice: 0,
-        hsnSac: "84145930",
+        hsnSac: "",
         taxPercent: 18,
       },
     ]);
@@ -152,17 +152,21 @@ export default function EditDocumentModal({ isOpen, onClose, document: docData, 
       validUntil: form.dueDate,
       amount: form.amount,
       balance: form.balance,
-      status: form.status,
+      status: normalizeSalesDocStatus(form.status, docData.type),
       paymentMethod: form.paymentMethod,
       method: form.paymentMethod,
       partyOrderNo: form.partyOrderNo,
-      salesPerson: form.salesPerson,
       itemsCount: form.itemsCount || `${items.length} Items`,
       notes: form.notes,
       items: items,
     };
 
     updateStoredDocument(docId, updated);
+    // Asynchronously synchronize with Central ERP Backend
+    salesApi.updateDocument(docId, updated).catch((err) => {
+      console.warn("[EditDocumentModal] Failed to sync update with backend:", err?.message);
+    });
+
     toast.success(`${docType} ${docId} updated with ${items.length} items`);
     if (onUpdated) onUpdated(updated);
     onClose();
@@ -170,6 +174,10 @@ export default function EditDocumentModal({ isOpen, onClose, document: docData, 
 
   const handleDelete = () => {
     deleteStoredDocument(docId);
+    salesApi.deleteDocument(docId).catch((err) => {
+      console.warn("[EditDocumentModal] Failed to sync deletion with backend:", err?.message);
+    });
+
     toast.success(`Deleted ${docType} ${docId}`);
     if (onUpdated) onUpdated(null);
     onClose();
@@ -178,17 +186,17 @@ export default function EditDocumentModal({ isOpen, onClose, document: docData, 
   const getStatusOptions = () => {
     switch (docType) {
       case "Invoice":
-        return ["Overdue", "Paid", "Partial", "Draft", "IN PROGRESS"];
+        return ["UNPAID", "PAID", "DRAFT", "CANCELLED"];
       case "Payment":
-        return ["Completed", "Pending", "Failed", "Refunded"];
+        return ["PENDING", "PAID", "CANCELLED"];
       case "Delivery Challan":
-        return ["DELIVERED", "IN TRANSIT", "PENDING", "DISPATCHED"];
+        return ["DELIVERED", "PENDING", "DRAFT", "CANCELLED"];
       case "Quotation":
-        return ["Sent", "Accepted", "Draft", "Expired"];
+        return ["PENDING", "APPROVED", "DRAFT", "CANCELLED"];
       case "Sales Order":
-        return ["Confirmed", "In Production", "Fulfilled", "Cancelled"];
+        return ["PENDING", "APPROVED", "DELIVERED", "DRAFT", "CANCELLED"];
       default:
-        return ["Completed", "Pending", "Cancelled"];
+        return ["PENDING", "APPROVED", "DRAFT", "CANCELLED"];
     }
   };
 
@@ -351,19 +359,6 @@ export default function EditDocumentModal({ isOpen, onClose, document: docData, 
               </>
             )}
 
-            {docType === "Quotation" && (
-              <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                  Sales Person
-                </label>
-                <input
-                  type="text"
-                  value={form.salesPerson}
-                  onChange={(e) => setForm({ ...form, salesPerson: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-semibold text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
-                />
-              </div>
-            )}
           </div>
 
           {/* Line Items Section */}

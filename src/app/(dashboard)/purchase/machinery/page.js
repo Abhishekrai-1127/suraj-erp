@@ -19,73 +19,7 @@ import {
   HardHat,
 } from "lucide-react";
 
-const machineryData = [
-  {
-    assetId: "MAC-2023-881",
-    name: "CNC 5-Axis Milling Machine",
-    model: "Haas VF-4SS Series",
-    category: "CNC Machining",
-    vendor: "Haas Automation India",
-    initials: "HA",
-    purchaseDate: "Jan 14, 2023",
-    cost: "₹38,50,000.00",
-    warrantyExpiry: "Jan 13, 2026",
-    status: "OPERATIONAL",
-    location: "Bay A - Main Workshop",
-  },
-  {
-    assetId: "MAC-2023-402",
-    name: "Heavy Duty Hydraulic Press 50T",
-    model: "HP-50T-V2 Custom",
-    category: "Forming & Pressing",
-    vendor: "Apex Industrial Solutions",
-    initials: "AI",
-    purchaseDate: "Mar 22, 2023",
-    cost: "₹18,20,000.00",
-    warrantyExpiry: "Mar 21, 2025",
-    status: "OPERATIONAL",
-    location: "Bay B - Heavy Press Area",
-  },
-  {
-    assetId: "MAC-2023-109",
-    name: "Fiber Laser Cutting Machine 3KW",
-    model: "Trumpf TruLaser 1030",
-    category: "Laser Processing",
-    vendor: "Trumpf India Ltd",
-    initials: "TI",
-    purchaseDate: "Jun 10, 2023",
-    cost: "₹65,00,000.00",
-    warrantyExpiry: "Jun 09, 2025",
-    status: "UNDER MAINTENANCE",
-    location: "Bay C - Laser Cutting Room",
-  },
-  {
-    assetId: "MAC-2023-311",
-    name: "Precision Heavy Duty Lathe Machine",
-    model: "Mazak Quick Turn 250",
-    category: "Turning & Lathes",
-    vendor: "Yamazaki Mazak Corp",
-    initials: "YM",
-    purchaseDate: "Aug 05, 2023",
-    cost: "₹24,80,000.00",
-    warrantyExpiry: "Aug 04, 2025",
-    status: "OPERATIONAL",
-    location: "Bay A - Turning Section",
-  },
-  {
-    assetId: "MAC-2023-054",
-    name: "Industrial Rotary Screw Air Compressor",
-    model: "Atlas Copco GA37+",
-    category: "Utilities & Power",
-    vendor: "Atlas Copco India",
-    initials: "AC",
-    purchaseDate: "Feb 18, 2023",
-    cost: "₹12,40,000.00",
-    warrantyExpiry: "Feb 17, 2024",
-    status: "CALIBRATION DUE",
-    location: "Compressor Utility Room",
-  },
-];
+
 
 export default function PurchasedMachineryPage() {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
@@ -295,7 +229,7 @@ export default function PurchasedMachineryPage() {
               ) : (
                 <tr>
                   <td colSpan={9} className="text-center py-8 text-slate-400 font-medium">
-                    No purchased machinery assets registered. Click "Create Purchase Record" above to add one.
+                    No purchased machinery assets registered. Click &quot;Create Purchase Record&quot; above to add one.
                   </td>
                 </tr>
               )}

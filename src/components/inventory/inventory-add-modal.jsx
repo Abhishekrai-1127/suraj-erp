@@ -21,6 +21,7 @@ export default function InventoryAddModal({ isOpen, onClose, initialTab = "produ
   const createEntryMutation = useCreateInventoryEntry();
 
   useEffect(() => {
+    /* eslint-disable react-hooks/set-state-in-effect */
     if (initialTab) {
       setActiveTab(initialTab);
     }
@@ -29,44 +30,44 @@ export default function InventoryAddModal({ isOpen, onClose, initialTab = "produ
   // Product Form
   const [prodForm, setProdForm] = useState({
     name: "",
-    sku: "SKU-" + Math.floor(1000 + Math.random() * 9000),
+    sku: "",
     category: "Mechanical Parts",
     warehouse: "Suraj Main Factory Warehouse (Bay A)",
-    stock: "100",
-    minReorder: "20",
-    unitPrice: "2500",
-    unit: "Units",
+    stock: "",
+    minReorder: "",
+    unitPrice: "",
+    unit: "",
   });
   const [isCustomCategory, setIsCustomCategory] = useState(false);
   const [isCustomWarehouse, setIsCustomWarehouse] = useState(false);
 
   // Stock Inflow Form
   const [receiveForm, setReceiveForm] = useState({
-    productName: "Industrial Gear Set X12",
-    sku: "IG-1200-BL",
+    productName: "",
+    sku: "",
     warehouse: "Suraj Main Factory Warehouse (Bay A)",
-    qty: "250",
-    supplier: "Apex Industrial Solutions",
-    batchNo: "BATCH-2024-099",
+    qty: "",
+    supplier: "",
+    batchNo: "",
   });
 
   // Adjustment Form
   const [adjustForm, setAdjustForm] = useState({
-    productName: "Fiber Laser Optic Lens 50mm",
+    productName: "",
     warehouse: "Suraj Main Factory Warehouse (Bay D)",
     type: "Audit Count Discrepancy",
-    qtyChange: "-2",
-    reason: "Damaged during physical stock count verification",
+    qtyChange: "",
+    reason: "",
   });
 
   // Transfer Form
   const [transferForm, setTransferForm] = useState({
-    productName: "HDPE Raw Pellets (Grade A)",
+    productName: "",
     sourceWarehouse: "Suraj Main Factory Warehouse (Bay C)",
     targetWarehouse: "Suraj Main Factory Warehouse (Bay A)",
-    qty: "50",
-    unit: "Bags",
-    carrier: "Internal Plant Forklift #02",
+    qty: "",
+    unit: "",
+    carrier: "",
   });
 
   if (!isOpen) return null;

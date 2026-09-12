@@ -14,11 +14,11 @@ import { toast } from "sonner";
 
 export default function SalesDrawerContent({ customerData }) {
   const customer = customerData || {
-    name: "Acme Corp Ltd",
-    type: "Manufacturing & Dist.",
-    initial: "A",
-    balance: "₹42,120.00",
-    overdueDays: 12,
+    name: "Customer",
+    type: "General Account",
+    initial: "C",
+    balance: "₹0.00",
+    overdueDays: 0,
   };
 
   const handleQuickAction = (actionName) => {

@@ -5,42 +5,10 @@ import SalesTabNav from "@/components/sales/sales-tab-nav";
 import QuickAddModal from "@/components/sales/quick-add-modal";
 import EditDocumentModal from "@/components/sales/edit-document-modal";
 import { Plus, Filter, Search, Edit3 } from "lucide-react";
-import { getStoredDocuments } from "@/lib/erp-storage";
+import { getStoredDocuments, getDeletedDocumentIds } from "@/lib/erp-storage";
+import { normalizeSalesDocStatus } from "@/services/sales-api";
 
-const initialPayments = [
-  {
-    id: "PAY-88410",
-    customer: "Acme Corp Ltd",
-    date: "May 14, 2024",
-    paymentMethod: "Bank Transfer",
-    amount: "₹12,450.00",
-    status: "Completed",
-  },
-  {
-    id: "PAY-88411",
-    customer: "Global Logistics SA",
-    date: "May 10, 2024",
-    paymentMethod: "UPI",
-    amount: "₹8,200.00",
-    status: "Completed",
-  },
-  {
-    id: "PAY-88412",
-    customer: "Starlight Ventures",
-    date: "May 08, 2024",
-    paymentMethod: "Credit Card",
-    amount: "₹2,500.00",
-    status: "Completed",
-  },
-  {
-    id: "PAY-88413",
-    customer: "Nexus Systems",
-    date: "May 05, 2024",
-    paymentMethod: "Bank Transfer",
-    amount: "₹15,700.00",
-    status: "Completed",
-  },
-];
+const initialPayments = [];
 
 export default function PaymentsPage() {
   const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
@@ -50,15 +18,18 @@ export default function PaymentsPage() {
 
   useEffect(() => {
     const loadData = () => {
-      const docs = getStoredDocuments().filter((d) => d.type === "payment");
+      const deletedIds = getDeletedDocumentIds();
+      const docs = getStoredDocuments().filter(
+        (d) => d.type === "payment" && !deletedIds.includes(d.id || d.refNo)
+      );
       setStoredPayments(
         docs.map((d) => ({
-          id: d.refNo,
+          id: d.refNo || d.id,
           customer: d.customer,
           date: d.date || d.paymentDate,
           paymentMethod: d.paymentMethod || d.method || "Bank Transfer",
           amount: d.amount,
-          status: d.status || "Completed",
+          status: normalizeSalesDocStatus(d.status, "payment") || "PAID",
         }))
       );
     };
@@ -139,7 +110,8 @@ export default function PaymentsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-              {filteredPayments.map((row) => (
+              {filteredPayments.length > 0 ? (
+                filteredPayments.map((row) => (
                 <tr key={row.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition">
                   <td className="py-3.5 px-4 text-blue-600 font-extrabold font-mono">{row.id}</td>
                   <td className="py-3.5 px-4 text-slate-900 dark:text-white font-bold">{row.customer}</td>
@@ -161,7 +133,14 @@ export default function PaymentsPage() {
                     </button>
                   </td>
                 </tr>
-              ))}
+              ))
+            ) : (
+              <tr>
+                <td colSpan={7} className="text-center py-12 text-slate-400 dark:text-slate-500 font-medium text-xs">
+                  No payment records found. Click &quot;Record Payment&quot; to record one.
+                </td>
+              </tr>
+            )}
             </tbody>
           </table>
         </div>

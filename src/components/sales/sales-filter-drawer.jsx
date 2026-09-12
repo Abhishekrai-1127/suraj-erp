@@ -1,14 +1,13 @@
 "use client";
 
 import React, { useState } from "react";
-import { Filter, RotateCcw, Check, Calendar, Tag, UserCheck, DollarSign, Globe } from "lucide-react";
+import { Filter, RotateCcw, Check, Calendar, Tag, DollarSign, Globe } from "lucide-react";
 import { toast } from "sonner";
 
 export default function SalesFilterDrawer({ initialFilters, onApplyFilters, onClose }) {
   const [dateRange, setDateRange] = useState(initialFilters?.dateRange || "this-month");
   const [selectedStatus, setSelectedStatus] = useState(initialFilters?.selectedStatus || ["all"]);
   const [selectedRegion, setSelectedRegion] = useState(initialFilters?.selectedRegion || "all");
-  const [selectedRep, setSelectedRep] = useState(initialFilters?.selectedRep || "all");
   const [minAmount, setMinAmount] = useState(initialFilters?.minAmount || "");
   const [maxAmount, setMaxAmount] = useState(initialFilters?.maxAmount || "");
 
@@ -31,7 +30,6 @@ export default function SalesFilterDrawer({ initialFilters, onApplyFilters, onCl
     setDateRange("this-month");
     setSelectedStatus(["all"]);
     setSelectedRegion("all");
-    setSelectedRep("all");
     setMinAmount("");
     setMaxAmount("");
     if (onApplyFilters) {
@@ -45,7 +43,6 @@ export default function SalesFilterDrawer({ initialFilters, onApplyFilters, onCl
       dateRange,
       selectedStatus,
       selectedRegion,
-      selectedRep,
       minAmount,
       maxAmount,
     };
@@ -160,24 +157,6 @@ export default function SalesFilterDrawer({ initialFilters, onApplyFilters, onCl
         </select>
       </div>
 
-      {/* 4. Sales Executive */}
-      <div className="space-y-2.5">
-        <label className="flex items-center gap-2 text-xs font-extrabold text-slate-900 dark:text-slate-100 uppercase tracking-wider">
-          <UserCheck size={14} className="text-slate-400" />
-          <span>Sales Representative</span>
-        </label>
-        <select
-          value={selectedRep}
-          onChange={(e) => setSelectedRep(e.target.value)}
-          className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-800 text-xs font-bold text-slate-800 dark:text-slate-200 focus:outline-hidden focus:ring-2 focus:ring-blue-500"
-        >
-          <option value="all">All Sales Reps</option>
-          <option value="sarah">Sarah Jenkins (Enterprise Accounts)</option>
-          <option value="michael">Michael Chen (Mid-Market)</option>
-          <option value="alex">Alex Rivera (SMB Sales)</option>
-          <option value="david">David Kim (Key Accounts)</option>
-        </select>
-      </div>
 
       {/* 5. Transaction Value Range */}
       <div className="space-y-2.5">
